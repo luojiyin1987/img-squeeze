@@ -517,6 +517,7 @@ dependencies = [
  "num_cpus",
  "oxipng",
  "rayon",
+ "thiserror",
  "walkdir",
 ]
 
