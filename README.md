@@ -3,16 +3,19 @@
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://rustlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/badge/crates.io-v0.1.0-blue.svg)](https://crates.io/)
+[![Parallel](https://img.shields.io/badge/parallel-rayon-green.svg)](https://github.com/rayon-rs/rayon)
 
-一个用 Rust 编写的快速、高效的图片压缩工具，支持多种图片格式和质量调整。
+一个用 Rust 编写的快速、高效的图片压缩工具，支持多线程并行处理、批量压缩和多种图片格式。
 
 ## ✨ 特性
 
-- 🖼️ **多格式支持** - 支持 JPEG、PNG、WebP 格式
+- 🖼️ **多格式支持** - 支持 JPEG、PNG、WebP、BMP、TIFF、GIF 格式
 - 🎯 **质量调整** - 可自定义压缩质量 (1-100)
 - 📏 **尺寸调整** - 可调整图片宽度和高度
-- 📊 **压缩统计** - 显示压缩前后文件大小对比
-- 🚀 **快速处理** - 基于 Rust 的高性能处理
+- 🚀 **多线程处理** - 基于 Rayon 的高性能并行处理
+- 📦 **批量处理** - 支持目录批量压缩和文件通配符
+- 📊 **详细统计** - 实时进度显示和性能统计
+- 🔧 **灵活配置** - 自定义线程数和递归处理
 - 🎨 **友好界面** - 清晰的进度提示和错误信息
 
 ## 📦 安装
@@ -42,12 +45,24 @@ cargo install img-squeeze
 ### 基本压缩
 
 ```bash
-# 基本压缩
+# 基本压缩（自动线程数）
 img-squeeze compress input.jpg output.jpg
 
 # 查看帮助
 img-squeeze --help
 img-squeeze compress --help
+img-squeeze batch --help
+```
+
+### 多线程压缩
+
+```bash
+# 指定线程数压缩
+img-squeeze compress input.jpg output.jpg -j 4        # 使用 4 个线程
+img-squeeze compress input.jpg output.jpg -j 8        # 使用 8 个线程
+
+# 自动线程数（默认，根据CPU核心数）
+img-squeeze compress input.jpg output.jpg
 ```
 
 ### 高级选项
@@ -64,6 +79,32 @@ img-squeeze compress input.jpg output.jpg -w 800 -H 600 # 同时设置宽度和�
 # 指定输出格式
 img-squeeze compress input.png output.jpg -f jpeg
 img-squeeze compress input.jpg output.webp -f webp
+
+# 多线程 + 高级选项组合
+img-squeeze compress input.jpg output.jpg -j 6 -q 85 -w 1200 -H 800 -f webp
+```
+
+### 批量处理（新增功能）
+
+```bash
+# 批量压缩整个目录
+img-squeeze batch ./images ./compressed
+
+# 批量压缩（递归处理子目录）
+img-squeeze batch ./photos ./output -r
+
+# 批量压缩 + 线程控制
+img-squeeze batch ./images ./compressed -j 8
+
+# 批量压缩 + 质量和尺寸调整
+img-squeeze batch ./images ./compressed -q 85 -w 1200 -H 800
+
+# 批量压缩 + 格式转换
+img-squeeze batch ./images ./webp_output -f webp
+
+# 使用通配符批量处理
+img-squeeze batch "*.jpg" ./compressed
+img-squeeze batch "./photos/*.png" ./compressed
 ```
 
 ### 查看图片信息
@@ -74,7 +115,8 @@ img-squeeze info image.jpg
 ```
 
 输出示例：
-```
+
+```bash
 📋 Getting info for: "image.jpg"
 📸 Image Information:
   📏 Dimensions: 1920x1080
@@ -84,13 +126,18 @@ img-squeeze info image.jpg
   📈 Megapixels: 2.1
 ```
 
-### 批量处理示例
+### 批量处理性能统计
+
+批量处理完成后会显示详细的性能统计：
 
 ```bash
-# 使用 shell 脚本批量压缩
-for file in *.jpg; do
-    img-squeeze compress "$file" "compressed_$file" -q 85 -w 1200
-done
+📊 Batch Compression Summary:
+  📁 Total files processed: 150
+  📊 Total original size: 456,789,123 bytes
+  📊 Total compressed size: 234,567,890 bytes
+  🎯 Overall compression ratio: 48.6%
+  ⏱️  Total time: 45.2s
+  ⚡ Average speed: 3.32 files/second
 ```
 
 ## 📖 命令详解
@@ -157,7 +204,7 @@ img-squeeze/
 
 - **内存效率** - 使用 Rust 的零成本抽象和内存安全
 - **处理速度** - 基于高性能的 `image` 库
-- **并行处理** - 支持多线程图片处理（未来版本）
+- **并行处理** - 支持多线程图片处理（基于 Rayon）
 - **流式处理** - 大文件的流式处理（未来版本）
 
 ## 🤝 贡献
