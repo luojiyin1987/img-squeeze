@@ -8,3 +8,7 @@ clap = { version = "4.4", features = ["derive"] }
 image = { version = "0.25", features = ["jpeg", "png", "webp"] }
 anyhow = "1.0"
 indicatif = "0.17"
+rayon = "1.8"
+num_cpus = "1.16"
+walkdir = "2.4"
+glob = "0.3"
