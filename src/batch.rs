@@ -1,5 +1,5 @@
 use crate::error::{CompressionError, Result};
-use crate::processing::{determine_output_format, save_image};
+use crate::processing::{determine_output_format, save_image, CompressionOptions};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::sync::Arc;
@@ -13,10 +13,7 @@ use std::time::Instant;
 pub fn batch_compress_images(
     input: String,
     output: PathBuf,
-    quality: Option<u8>,
-    width: Option<u32>,
-    height: Option<u32>,
-    format: Option<String>,
+    options: CompressionOptions,
     recursive: bool,
 ) -> Result<()> {
     println!("🚀 Starting batch compression...");
@@ -54,7 +51,7 @@ pub fn batch_compress_images(
         let total_size_before = total_size_before.clone();
         let total_size_after = total_size_after.clone();
         
-        match process_single_image(&input_path, &output, quality, width, height, &format) {
+        match process_single_image(&input_path, &output, &options) {
             Ok((before_size, after_size)) => {
                 total_size_before.fetch_add(before_size, Ordering::Relaxed);
                 total_size_after.fetch_add(after_size, Ordering::Relaxed);
@@ -151,13 +148,10 @@ fn is_image_file(path: &Path) -> bool {
 fn process_single_image(
     input_path: &Path,
     output_dir: &Path,
-    quality: Option<u8>,
-    width: Option<u32>,
-    height: Option<u32>,
-    format: &Option<String>,
+    options: &CompressionOptions,
 ) -> Result<(usize, usize)> {
     // 生成输出路径
-    let output_path = generate_output_path(input_path, output_dir, format)?;
+    let output_path = generate_output_path(input_path, output_dir, &options.format)?;
     
     // 读取原始文件大小
     let before_size = fs::metadata(input_path)?.len() as usize;
@@ -165,20 +159,20 @@ fn process_single_image(
     // 处理图片
     let mut img = image::ImageReader::open(input_path)?.decode()?;
     
-    if let Some(w) = width {
+    if let Some(w) = options.width {
         if w > 0 && w != img.width() {
             img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
         }
     }
     
-    if let Some(h) = height {
+    if let Some(h) = options.height {
         if h > 0 && h != img.height() {
             img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
         }
     }
     
-    let output_format = determine_output_format(&output_path, format)?;
-    save_image(&img, &output_path, output_format, quality.unwrap_or(80))?;
+    let output_format = determine_output_format(&output_path, &options.format)?;
+    save_image(&img, &output_path, output_format, options)?;
     
     // 读取压缩后文件大小
     let after_size = fs::metadata(&output_path)?.len() as usize;

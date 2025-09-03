@@ -7,7 +7,7 @@ mod info;
 use clap::Parser;
 use cli::{Args, Commands};
 use error::Result;
-use processing::compress_image;
+use processing::{compress_image, CompressionOptions};
 use batch::batch_compress_images;
 use info::{get_image_info, print_detailed_info};
 use rayon::ThreadPoolBuilder;
@@ -19,11 +19,13 @@ fn main() -> Result<()> {
     match args.command {
         Commands::Compress { input, output, quality, width, height, format, threads } => {
             setup_thread_pool(threads);
-            compress_image(input, output, quality, width, height, format)?;
+            let options = CompressionOptions::new(quality, width, height, format)?;
+            compress_image(input, output, options)?;
         }
         Commands::Batch { input, output, quality, width, height, format, threads, recursive } => {
             setup_thread_pool(threads);
-            batch_compress_images(input, output, quality, width, height, format, recursive)?;
+            let options = CompressionOptions::new(quality, width, height, format)?;
+            batch_compress_images(input, output, options, recursive)?;
         }
         Commands::Info { input } => {
             show_image_info(&input)?;
