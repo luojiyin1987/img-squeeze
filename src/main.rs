@@ -129,7 +129,7 @@ fn compress_image(
     }
     
     let quality = quality.unwrap_or(80);
-    if quality < 1 || quality > 100 {
+    if !(1..=100).contains(&quality) {
         return Err(anyhow::anyhow!("❌ Quality must be between 1 and 100"));
     }
     
@@ -144,23 +144,21 @@ fn compress_image(
     
     println!("📊 Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
     
-    if let Some(w) = width {
-        if w > 0 && w != img.width() {
-            println!("🔄 Resizing width...");
-            img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-            println!("✅ Resized to width: {}", w);
-        }
+    if let Some(w) = width
+        && w > 0 && w != img.width() {
+        println!("🔄 Resizing width...");
+        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to width: {}", w);
     }
     
-    if let Some(h) = height {
-        if h > 0 && h != img.height() {
-            println!("🔄 Resizing height...");
-            img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-            println!("✅ Resized to height: {}", h);
-        }
+    if let Some(h) = height
+        && h > 0 && h != img.height() {
+        println!("🔄 Resizing height...");
+        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to height: {}", h);
     }
     
-    let output_format = determine_output_format(&output, &format)?;
+    let output_format = determine_output_format(output.as_path(), &format)?;
     
     pb.set_message("Saving compressed image...");
     save_image(&img, &output, output_format, quality)?;
@@ -181,7 +179,7 @@ fn compress_image(
     Ok(())
 }
 
-fn determine_output_format(output: &PathBuf, format: &Option<String>) -> Result<ImageFormat> {
+fn determine_output_format(output: &Path, format: &Option<String>) -> Result<ImageFormat> {
     if let Some(fmt) = format {
         match fmt.to_lowercase().as_str() {
             "jpeg" | "jpg" => Ok(ImageFormat::Jpeg),
@@ -376,19 +374,17 @@ fn process_single_image(
     // 处理图片
     let mut img = ImageReader::open(input_path)?.decode()?;
     
-    if let Some(w) = width {
-        if w > 0 && w != img.width() {
-            img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-        }
+    if let Some(w) = width
+        && w > 0 && w != img.width() {
+        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
     }
     
-    if let Some(h) = height {
-        if h > 0 && h != img.height() {
-            img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-        }
+    if let Some(h) = height
+        && h > 0 && h != img.height() {
+        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
     }
     
-    let output_format = determine_output_format(&output_path, format)?;
+    let output_format = determine_output_format(output_path.as_path(), format)?;
     save_image(&img, &output_path, output_format, quality.unwrap_or(80))?;
     
     // 读取压缩后文件大小
