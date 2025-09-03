@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
 image = { version = "0.25", features = ["jpeg", "png", "webp"] }
+oxipng = { version = "9.1", features = ["parallel", "zopfli"], default-features = false }
 anyhow = "1.0"
 indicatif = "0.17"
 rayon = "1.8"

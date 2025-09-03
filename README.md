@@ -17,6 +17,7 @@
 - 📊 **详细统计** - 实时进度显示和性能统计
 - 🔧 **灵活配置** - 自定义线程数和递归处理
 - 🎨 **友好界面** - 清晰的进度提示和错误信息
+- 🚀 **PNG 优化** - 使用 oxipng 库进行高级 PNG 压缩优化
 
 ## 📦 安装
 
@@ -205,6 +206,7 @@ img-squeeze/
 - **内存效率** - 使用 Rust 的零成本抽象和内存安全
 - **处理速度** - 基于高性能的 `image` 库
 - **并行处理** - 支持多线程图片处理（基于 Rayon）
+- **PNG 优化** - 使用 oxipng 进行无损 PNG 压缩，支持 Zopfli 算法
 - **流式处理** - 大文件的流式处理（未来版本）
 
 ## 🤝 贡献
@@ -225,6 +227,7 @@ img-squeeze/
 
 - [Rust](https://rustlang.org/) - 强大的系统编程语言
 - [image](https://github.com/image-rs/image) - Rust 图片处理库
+- [oxipng](https://github.com/shssoichiro/oxipng) - 高级 PNG 压缩优化库
 - [clap](https://github.com/clap-rs/clap) - 命令行参数解析库
 - [indicatif](https://github.com/console-rs/indicatif) - 进度条库
 

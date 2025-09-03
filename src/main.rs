@@ -1,7 +1,8 @@
 use clap::{Parser, Subcommand};
 use anyhow::Result;
 use std::path::{PathBuf, Path};
-use image::{DynamicImage, ImageFormat, ImageReader};
+use std::num::NonZeroU8;
+use image::{DynamicImage, ImageFormat, ImageReader, GenericImageView};
 use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,6 +11,7 @@ use rayon::prelude::*;
 use walkdir::WalkDir;
 use glob::glob;
 use std::time::Instant;
+use oxipng::{Options, Deflaters, InFile, OutFile};
 
 #[derive(Parser)]
 #[command(
@@ -197,7 +199,7 @@ fn determine_output_format(output: &Path, format: &Option<String>) -> Result<Ima
     }
 }
 
-fn save_image(img: &DynamicImage, output: &PathBuf, format: ImageFormat, _quality: u8) -> Result<()> {
+fn save_image(img: &DynamicImage, output: &PathBuf, format: ImageFormat, quality: u8) -> Result<()> {
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -207,7 +209,37 @@ fn save_image(img: &DynamicImage, output: &PathBuf, format: ImageFormat, _qualit
             img.save_with_format(output, image::ImageFormat::Jpeg)?;
         }
         ImageFormat::Png => {
-            img.save_with_format(output, image::ImageFormat::Png)?;
+            // 使用 oxipng 进行 PNG 优化
+            let (_width, _height) = img.dimensions();
+            
+            // 先保存为临时文件
+            let temp_path = output.with_extension("temp.png");
+            img.save_with_format(&temp_path, image::ImageFormat::Png)?;
+            
+            // 配置 oxipng 选项
+            let mut options = Options::from_preset(4); // 使用预设 4 (最高压缩)
+            options.force = true; // 强制覆盖
+            
+            // 根据质量设置调整压缩级别
+            if quality >= 90 {
+                options.deflate = Deflaters::Zopfli { iterations: NonZeroU8::new(15).unwrap() };
+            } else if quality >= 70 {
+                options.deflate = Deflaters::Libdeflater { compression: 12 };
+            } else {
+                options.deflate = Deflaters::Libdeflater { compression: 8 };
+            }
+            
+            // 使用 oxipng 优化文件
+            let input = InFile::Path(temp_path.clone());
+            let out = OutFile::Path { 
+                path: Some(output.clone()), 
+                preserve_attrs: false 
+            };
+            oxipng::optimize(&input, &out, &options)
+                .map_err(|e| anyhow::anyhow!("PNG optimization failed: {}", e))?;
+            
+            // 删除临时文件
+            fs::remove_file(temp_path)?;
         }
         ImageFormat::WebP => {
             img.save_with_format(output, image::ImageFormat::WebP)?;

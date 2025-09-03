@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Project Layout
 
-```
+```text
 img-squeeze/
 ├── src/
 │   └── main.rs          # Application entry point
