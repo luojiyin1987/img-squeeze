@@ -17,7 +17,7 @@ pub struct CompressionOptions {
 impl CompressionOptions {
     pub fn new(quality: Option<u8>, width: Option<u32>, height: Option<u32>, format: Option<String>) -> Result<Self> {
         let quality = quality.unwrap_or(80);
-        if quality < 1 || quality > 100 {
+        if !(1..=100).contains(&quality) {
             return Err(CompressionError::InvalidQuality(quality));
         }
         
@@ -27,15 +27,6 @@ impl CompressionOptions {
             height,
             format,
         })
-    }
-    
-    pub fn default() -> Self {
-        Self {
-            quality: 80,
-            width: None,
-            height: None,
-            format: None,
-        }
     }
 }
 
