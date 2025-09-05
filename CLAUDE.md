@@ -109,16 +109,19 @@ img-squeeze/
 ## Common Usage Patterns
 
 ### Single Image Compression
+
 ```bash
 img-squeeze compress input.jpg output.jpg -q 85 -w 1920 -H 1080 -j 4
 ```
 
 ### Batch Processing
+
 ```bash
 img-squeeze batch "./images/*.jpg" ./compressed -r -q 80 -f webp
 ```
 
 ### Image Analysis
+
 ```bash
 img-squeeze info image.jpg
 ```
@@ -137,6 +140,7 @@ img-squeeze info image.jpg
 ### PNG Optimization Strategy
 
 The tool uses sophisticated PNG optimization through oxipng:
+
 - **Quality-based compression levels**: Higher quality (90+) uses Zopfli with 15 iterations
 - **Medium quality (70-89)**: Uses libdeflater with compression level 12
 - **Lower quality (<70)**: Uses libdeflater with compression level 8
@@ -153,6 +157,7 @@ The tool uses sophisticated PNG optimization through oxipng:
 ### Error Handling Pattern
 
 The project uses a centralized error handling approach:
+
 - `CompressionError` enum covers all error scenarios
 - Errors are propagated using `?` operator throughout the call stack
 - User-friendly error messages with context (file paths, operation details)
