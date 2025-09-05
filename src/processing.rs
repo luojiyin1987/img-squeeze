@@ -44,13 +44,13 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
 pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
     if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
         println!("🔄 Resizing width...");
-        *img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
+        *img = img.resize_exact(w, img.height(), image::imageops::FilterType::Lanczos3);
         println!("✅ Resized to width: {}", w);
     }
     
     if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
         println!("🔄 Resizing height...");
-        *img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
+        *img = img.resize_exact(img.width(), h, image::imageops::FilterType::Lanczos3);
         println!("✅ Resized to height: {}", h);
     }
 }
@@ -177,4 +177,126 @@ pub fn save_image(img: &DynamicImage, output: &PathBuf, format: ImageFormat, opt
     }
     
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compression_options_creation() {
+        let options = CompressionOptions::new(Some(85), Some(800), Some(600), Some("webp".to_string())).unwrap();
+        assert_eq!(options.quality, 85);
+        assert_eq!(options.width, Some(800));
+        assert_eq!(options.height, Some(600));
+        assert_eq!(options.format, Some("webp".to_string()));
+    }
+
+    #[test]
+    fn test_compression_options_default() {
+        let options = CompressionOptions::new(None, None, None, None).unwrap();
+        assert_eq!(options.quality, 80);
+        assert_eq!(options.width, None);
+        assert_eq!(options.height, None);
+        assert_eq!(options.format, None);
+    }
+
+    #[test]
+    fn test_compression_options_invalid_quality() {
+        let result = CompressionOptions::new(Some(0), None, None, None);
+        assert!(matches!(result, Err(CompressionError::InvalidQuality(0))));
+        
+        let result = CompressionOptions::new(Some(101), None, None, None);
+        assert!(matches!(result, Err(CompressionError::InvalidQuality(101))));
+    }
+
+    #[test]
+    fn test_determine_output_format() {
+        let path = Path::new("test.jpg");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Jpeg);
+
+        let path = Path::new("test.png");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Png);
+
+        let path = Path::new("test.webp");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::WebP);
+
+        let path = Path::new("test.unknown");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Jpeg);
+    }
+
+    #[test]
+    fn test_determine_output_format_with_override() {
+        let path = Path::new("test.jpg");
+        let format = determine_output_format(path, &Some("png".to_string())).unwrap();
+        assert_eq!(format, ImageFormat::Png);
+    }
+
+    #[test]
+    fn test_determine_output_format_unsupported() {
+        let path = Path::new("test.jpg");
+        let result = determine_output_format(path, &Some("unsupported".to_string()));
+        assert!(matches!(result, Err(CompressionError::UnsupportedFormat(_))));
+    }
+
+    #[test]
+    fn test_resize_image_dimensions() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), Some(1000), None, None).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        assert_eq!(img.dimensions(), (1000, 1500));
+    }
+
+    #[test]
+    fn test_resize_image_height_only() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), None, Some(750), None).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        assert_eq!(img.dimensions(), (2000, 750));
+    }
+
+    #[test]
+    fn test_resize_image_both_dimensions() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), Some(800), Some(600), None).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        assert_eq!(img.dimensions(), (800, 600));
+    }
+
+    #[test]
+    fn test_resize_image_no_dimensions() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), None, None, None).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        assert_eq!(img.dimensions(), (2000, 1500));
+    }
+
+    #[test]
+    fn test_resize_image_same_dimensions() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), Some(2000), Some(1500), None).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        assert_eq!(img.dimensions(), (2000, 1500));
+    }
+
+    #[test]
+    fn test_load_image_with_metadata_not_found() {
+        let path = Path::new("nonexistent.jpg");
+        let result = load_image_with_metadata(path);
+        assert!(matches!(result, Err(CompressionError::FileNotFound(_))));
+    }
 }

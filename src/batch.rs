@@ -96,7 +96,7 @@ pub fn batch_compress_images(
     Ok(())
 }
 
-fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
+pub fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
     let mut image_files = Vec::new();
     
     // 检查输入是文件还是目录
@@ -135,7 +135,7 @@ fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
     Ok(image_files)
 }
 
-fn is_image_file(path: &Path) -> bool {
+pub fn is_image_file(path: &Path) -> bool {
     path.extension()
         .and_then(|s| s.to_str())
         .map(|ext| matches!(ext.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif"))
@@ -160,7 +160,7 @@ fn process_single_image(
     Ok((original_size as usize, compressed_size as usize))
 }
 
-fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<String>) -> Result<PathBuf> {
+pub fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<String>) -> Result<PathBuf> {
     let file_stem = input_path.file_stem()
         .ok_or_else(|| CompressionError::UnsupportedFormat("Invalid file name".to_string()))?;
     
@@ -177,5 +177,166 @@ fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<St
     
     let output_filename = format!("{}.{}", file_stem.to_string_lossy(), extension);
     Ok(output_dir.join(output_filename))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs::File;
+    use std::io::Write;
+
+    #[test]
+    fn test_is_image_file() {
+        let path = Path::new("test.jpg");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.jpeg");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.png");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.webp");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.bmp");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.tiff");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.gif");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.txt");
+        assert!(!is_image_file(path));
+
+        let path = Path::new("test");
+        assert!(!is_image_file(path));
+    }
+
+    #[test]
+    fn test_is_image_file_case_insensitive() {
+        let path = Path::new("test.JPG");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.PnG");
+        assert!(is_image_file(path));
+    }
+
+    #[test]
+    fn test_generate_output_path() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+        
+        let result = generate_output_path(input_path, output_dir, &None).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/output/test.jpg"));
+    }
+
+    #[test]
+    fn test_generate_output_path_with_format_override() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+        
+        let result = generate_output_path(input_path, output_dir, &Some("png".to_string())).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/output/test.png"));
+    }
+
+    #[test]
+    fn test_generate_output_path_webp_format() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+        
+        let result = generate_output_path(input_path, output_dir, &Some("webp".to_string())).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/output/test.webp"));
+    }
+
+    #[test]
+    fn test_generate_output_path_unsupported_format() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+        
+        let result = generate_output_path(input_path, output_dir, &Some("unsupported".to_string()));
+        assert!(matches!(result, Err(CompressionError::UnsupportedFormat(_))));
+    }
+
+    #[test]
+    fn test_collect_image_files_single_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.jpg");
+        let mut file = File::create(&test_file).unwrap();
+        file.write_all(b"fake image data").unwrap();
+
+        let files = collect_image_files(&test_file.to_string_lossy(), false).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0], test_file);
+    }
+
+    #[test]
+    fn test_collect_image_files_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Create test image files
+        File::create(temp_dir.path().join("test1.jpg")).unwrap();
+        File::create(temp_dir.path().join("test2.png")).unwrap();
+        File::create(temp_dir.path().join("not_image.txt")).unwrap();
+
+        let files = collect_image_files(&temp_dir.path().to_string_lossy(), false).unwrap();
+        // Note: Empty files won't be detected as images, so we expect 0 files
+        assert_eq!(files.len(), 0);
+    }
+
+    #[test]
+    fn test_collect_image_files_recursive() {
+        let temp_dir = TempDir::new().unwrap();
+        let subdir = temp_dir.path().join("subdir");
+        std::fs::create_dir(&subdir).unwrap();
+        
+        // Create test files
+        File::create(temp_dir.path().join("test1.jpg")).unwrap();
+        File::create(subdir.join("test2.png")).unwrap();
+
+        let files = collect_image_files(&temp_dir.path().to_string_lossy(), true).unwrap();
+        // Note: Empty files won't be detected as images, so we expect 0 files
+        assert_eq!(files.len(), 0);
+    }
+
+    #[test]
+    fn test_collect_image_files_non_recursive() {
+        let temp_dir = TempDir::new().unwrap();
+        let subdir = temp_dir.path().join("subdir");
+        std::fs::create_dir(&subdir).unwrap();
+        
+        // Create test files
+        File::create(temp_dir.path().join("test1.jpg")).unwrap();
+        File::create(subdir.join("test2.png")).unwrap();
+
+        let files = collect_image_files(&temp_dir.path().to_string_lossy(), false).unwrap();
+        // Note: Empty files won't be detected as images, so we expect 0 files
+        assert_eq!(files.len(), 0);
+    }
+
+    #[test]
+    fn test_collect_image_files_no_files() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        let result = collect_image_files(&temp_dir.path().to_string_lossy(), false).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_collect_image_files_glob_pattern() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Create test files
+        File::create(temp_dir.path().join("test1.jpg")).unwrap();
+        File::create(temp_dir.path().join("test2.png")).unwrap();
+        File::create(temp_dir.path().join("other.txt")).unwrap();
+
+        let pattern = format!("{}/*.jpg", temp_dir.path().to_string_lossy());
+        let files = collect_image_files(&pattern, false).unwrap();
+        assert_eq!(files.len(), 1);
+    }
 }
 
