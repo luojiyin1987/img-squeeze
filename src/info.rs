@@ -45,7 +45,7 @@ pub fn get_image_info(input_path: &Path) -> Result<()> {
     
     if metadata.len() > 5 * 1024 * 1024 {
         println!("  🎯 Large file (>5MB): Consider high compression (quality 60-80)");
-    } else if metadata.len() > 1 * 1024 * 1024 {
+    } else if metadata.len() > 1024 * 1024 {
         println!("  🎯 Medium file (1-5MB): Consider medium compression (quality 70-85)");
     } else {
         println!("  🎯 Small file (<1MB): Consider light compression (quality 85-95)");

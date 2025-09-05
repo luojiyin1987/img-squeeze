@@ -30,6 +30,17 @@ impl CompressionOptions {
     }
 }
 
+pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
+    if !input_path.exists() {
+        return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
+    }
+    
+    let img = ImageReader::open(input_path)?.decode()?;
+    let file_size = fs::metadata(input_path)?.len();
+    
+    Ok((img, file_size))
+}
+
 pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
     if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
         println!("🔄 Resizing width...");
@@ -44,6 +55,19 @@ pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
     }
 }
 
+pub fn process_and_save_image(
+    img: &DynamicImage,
+    output_path: &Path,
+    options: &CompressionOptions,
+) -> Result<u64> {
+    let output_buf = output_path.to_path_buf();
+    let output_format = determine_output_format(output_path, &options.format)?;
+    save_image(img, &output_buf, output_format, options)?;
+    
+    let compressed_size = fs::metadata(output_path)?.len();
+    Ok(compressed_size)
+}
+
 pub fn compress_image(
     input: PathBuf,
     output: PathBuf,
@@ -52,19 +76,11 @@ pub fn compress_image(
     println!("🗜️  Compressing image: {:?}", input);
     println!("📁 Output: {:?}", output);
     
-    if !input.exists() {
-        return Err(CompressionError::FileNotFound(input));
-    }
-    
-    // Quality validation is now handled in CompressionOptions::new()
-    
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::default_spinner().template("{spinner:.green} {msg}").unwrap());
     pb.set_message("Loading image...");
     
-    let mut img = ImageReader::open(&input)?.decode()?;
-    
-    let original_size = fs::metadata(&input)?.len();
+    let (mut img, original_size) = load_image_with_metadata(&input)?;
     pb.finish_with_message("✅ Image loaded");
     
     println!("📊 Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
@@ -72,13 +88,9 @@ pub fn compress_image(
     // Resize if needed
     resize_image(&mut img, &options);
     
-    let output_format = determine_output_format(&output, &options.format)?;
-    
     pb.set_message("Saving compressed image...");
-    save_image(&img, &output, output_format, &options)?;
+    let compressed_size = process_and_save_image(&img, &output, &options)?;
     pb.finish_with_message("✅ Compression complete");
-    
-    let compressed_size = fs::metadata(&output)?.len();
     let compression_ratio = ((original_size as f64 - compressed_size as f64) / original_size as f64) * 100.0;
     
     println!("📈 Compressed size: {} bytes", compressed_size);

@@ -1,5 +1,5 @@
 use crate::error::{CompressionError, Result};
-use crate::processing::{determine_output_format, save_image, resize_image, CompressionOptions};
+use crate::processing::{load_image_with_metadata, process_and_save_image, resize_image, CompressionOptions};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::sync::Arc;
@@ -150,21 +150,14 @@ fn process_single_image(
     // 生成输出路径
     let output_path = generate_output_path(input_path, output_dir, &options.format)?;
     
-    // 读取原始文件大小
-    let before_size = fs::metadata(input_path)?.len() as usize;
-    
     // 处理图片
-    let mut img = image::ImageReader::open(input_path)?.decode()?;
+    let (mut img, original_size) = load_image_with_metadata(input_path)?;
     
     resize_image(&mut img, options);
     
-    let output_format = determine_output_format(&output_path, &options.format)?;
-    save_image(&img, &output_path, output_format, options)?;
+    let compressed_size = process_and_save_image(&img, &output_path, options)?;
     
-    // 读取压缩后文件大小
-    let after_size = fs::metadata(&output_path)?.len() as usize;
-    
-    Ok((before_size, after_size))
+    Ok((original_size as usize, compressed_size as usize))
 }
 
 fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<String>) -> Result<PathBuf> {
@@ -178,10 +171,8 @@ fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<St
             "webp" => "webp",
             _ => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
-    } else if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
-        ext
     } else {
-        "jpg"
+        input_path.extension().and_then(|s| s.to_str()).unwrap_or("jpg")
     };
     
     let output_filename = format!("{}.{}", file_stem.to_string_lossy(), extension);
