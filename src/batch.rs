@@ -1,5 +1,5 @@
 use crate::error::{CompressionError, Result};
-use crate::processing::{determine_output_format, save_image, CompressionOptions};
+use crate::processing::{determine_output_format, save_image, resize_image, CompressionOptions};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::sync::Arc;
@@ -156,13 +156,7 @@ fn process_single_image(
     // 处理图片
     let mut img = image::ImageReader::open(input_path)?.decode()?;
     
-    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
-        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-    }
-    
-    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
-        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-    }
+    resize_image(&mut img, options);
     
     let output_format = determine_output_format(&output_path, &options.format)?;
     save_image(&img, &output_path, output_format, options)?;

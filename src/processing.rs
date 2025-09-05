@@ -30,6 +30,20 @@ impl CompressionOptions {
     }
 }
 
+pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
+    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
+        println!("🔄 Resizing width...");
+        *img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to width: {}", w);
+    }
+    
+    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
+        println!("🔄 Resizing height...");
+        *img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to height: {}", h);
+    }
+}
+
 pub fn compress_image(
     input: PathBuf,
     output: PathBuf,
@@ -56,17 +70,7 @@ pub fn compress_image(
     println!("📊 Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
     
     // Resize if needed
-    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
-        println!("🔄 Resizing width...");
-        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-        println!("✅ Resized to width: {}", w);
-    }
-    
-    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
-        println!("🔄 Resizing height...");
-        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-        println!("✅ Resized to height: {}", h);
-    }
+    resize_image(&mut img, &options);
     
     let output_format = determine_output_format(&output, &options.format)?;
     
