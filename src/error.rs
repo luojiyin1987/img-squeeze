@@ -27,14 +27,8 @@ pub enum CompressionError {
     #[error("No image files found in input path: {0}")]
     NoImageFilesFound(String),
     
-    #[error("Glob pattern error: {0}")]
-    GlobPatternError(String),
-    
     #[error("Walkdir error: {0}")]
     WalkdirError(#[from] walkdir::Error),
-    
-    #[error("Template error: {0}")]
-    TemplateError(String),
 }
 
 pub type Result<T> = std::result::Result<T, CompressionError>;
