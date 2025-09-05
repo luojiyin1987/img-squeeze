@@ -3,6 +3,10 @@ name = "img-squeeze"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "img_squeeze"
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
 image = { version = "0.25", features = ["jpeg", "png", "webp"] }
@@ -14,3 +18,15 @@ rayon = "1.8"
 num_cpus = "1.16"
 walkdir = "2.4"
 glob = "0.3"
+
+[dev-dependencies]
+criterion = "0.5"
+proptest = "1.4"
+tempfile = "3.10"
+assert_cmd = "2.0"
+predicates = "3.1"
+assert_fs = "1.1"
+
+[[bench]]
+name = "compression_bench"
+harness = false
