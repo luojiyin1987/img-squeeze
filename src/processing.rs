@@ -56,20 +56,16 @@ pub fn compress_image(
     println!("📊 Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
     
     // Resize if needed
-    if let Some(w) = options.width {
-        if w > 0 && w != img.width() {
-            println!("🔄 Resizing width...");
-            img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-            println!("✅ Resized to width: {}", w);
-        }
+    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
+        println!("🔄 Resizing width...");
+        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to width: {}", w);
     }
     
-    if let Some(h) = options.height {
-        if h > 0 && h != img.height() {
-            println!("🔄 Resizing height...");
-            img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-            println!("✅ Resized to height: {}", h);
-        }
+    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
+        println!("🔄 Resizing height...");
+        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
+        println!("✅ Resized to height: {}", h);
     }
     
     let output_format = determine_output_format(&output, &options.format)?;
@@ -101,13 +97,15 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "webp" => Ok(ImageFormat::WebP),
             _ => Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
-    } else {
-        match output.extension().and_then(|ext| ext.to_str()) {
-            Some("jpg") | Some("jpeg") => Ok(ImageFormat::Jpeg),
-            Some("png") => Ok(ImageFormat::Png),
-            Some("webp") => Ok(ImageFormat::WebP),
+    } else if let Some(ext) = output.extension().and_then(|ext| ext.to_str()) {
+        match ext {
+            "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
+            "png" => Ok(ImageFormat::Png),
+            "webp" => Ok(ImageFormat::WebP),
             _ => Ok(ImageFormat::Jpeg),
         }
+    } else {
+        Ok(ImageFormat::Jpeg)
     }
 }
 

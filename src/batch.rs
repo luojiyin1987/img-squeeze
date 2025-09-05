@@ -121,28 +121,25 @@ fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
                 image_files.push(path.to_path_buf());
             }
         }
-    } else {
+    } else if let Ok(glob_pattern) = glob(input) {
         // 尝试使用glob模式
-        if let Ok(glob_pattern) = glob(input) {
-            for entry in glob_pattern.flatten() {
-                if entry.is_file() && is_image_file(&entry) {
-                    image_files.push(entry);
-                }
+        for entry in glob_pattern.flatten() {
+            if entry.is_file() && is_image_file(&entry) {
+                image_files.push(entry);
             }
-        } else {
-            return Err(CompressionError::NoImageFilesFound(input.to_string()));
         }
+    } else {
+        return Err(CompressionError::NoImageFilesFound(input.to_string()));
     }
     
     Ok(image_files)
 }
 
 fn is_image_file(path: &Path) -> bool {
-    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-        matches!(ext.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif")
-    } else {
-        false
-    }
+    path.extension()
+        .and_then(|s| s.to_str())
+        .map(|ext| matches!(ext.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif"))
+        .unwrap_or(false)
 }
 
 fn process_single_image(
@@ -159,16 +156,12 @@ fn process_single_image(
     // 处理图片
     let mut img = image::ImageReader::open(input_path)?.decode()?;
     
-    if let Some(w) = options.width {
-        if w > 0 && w != img.width() {
-            img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
-        }
+    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
+        img = img.resize(w, img.height(), image::imageops::FilterType::Lanczos3);
     }
     
-    if let Some(h) = options.height {
-        if h > 0 && h != img.height() {
-            img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
-        }
+    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
+        img = img.resize(img.width(), h, image::imageops::FilterType::Lanczos3);
     }
     
     let output_format = determine_output_format(&output_path, &options.format)?;
@@ -191,10 +184,10 @@ fn generate_output_path(input_path: &Path, output_dir: &Path, format: &Option<St
             "webp" => "webp",
             _ => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
+    } else if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
+        ext
     } else {
-        input_path.extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("jpg")
+        "jpg"
     };
     
     let output_filename = format!("{}.{}", file_stem.to_string_lossy(), extension);
