@@ -1,5 +1,9 @@
 use crate::error::{CompressionError, Result};
 use crate::processing::{CompressionOptions, process_image_pipeline};
+use crate::constants::{
+    MAX_BATCH_MEMORY_MB, MAX_BATCH_FILES, MIN_AVAILABLE_MEMORY_MB,
+    LARGE_IMAGE_THRESHOLD_MB, MAX_CONCURRENT_LARGE_IMAGES
+};
 use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -9,6 +13,87 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use walkdir::WalkDir;
+
+/// Estimates memory usage for an image file without loading it into memory.
+/// 
+/// # Arguments
+/// * `file_path` - Path to the image file
+/// 
+/// # Returns
+/// * `Ok(memory_mb)` - Estimated memory usage in MB
+/// * `Err(CompressionError)` - If file metadata cannot be read
+fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
+    let metadata = fs::metadata(file_path)?;
+    let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+    
+    // Conservative estimate: uncompressed image memory usage is typically 3-4x file size
+    // for compressed formats like JPEG, and 1-1.5x for uncompressed formats like BMP
+    let multiplier = match file_path.extension().and_then(|s| s.to_str()) {
+        Some(ext) => match ext.to_lowercase().as_str() {
+            "jpg" | "jpeg" => 4.0,  // JPEG compression ratio is typically high
+            "png" => 3.0,           // PNG has good compression
+            "webp" => 3.5,          // WebP has good compression
+            "bmp" | "tiff" => 1.2,  // Usually uncompressed or lightly compressed
+            "gif" => 2.0,           // GIF has moderate compression
+            _ => 3.0,               // Default conservative estimate
+        },
+        None => 3.0,
+    };
+    
+    Ok(file_size_mb * multiplier)
+}
+
+/// Validates batch memory requirements before processing.
+/// 
+/// # Arguments
+/// * `image_files` - List of image file paths to process
+/// 
+/// # Returns
+/// * `Ok((total_memory_mb, large_image_count))` - Estimated memory usage and count of large images
+/// * `Err(CompressionError)` - If memory limits would be exceeded
+fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)> {
+    // Check file count limit
+    if image_files.len() > MAX_BATCH_FILES {
+        return Err(CompressionError::BatchFileLimitExceeded(
+            image_files.len(),
+            MAX_BATCH_FILES,
+        ));
+    }
+    
+    let mut total_memory_mb = 0.0;
+    let mut large_image_count = 0;
+    
+    // Estimate memory usage for each file
+    for file_path in image_files {
+        let memory_estimate = estimate_image_memory_usage(file_path)?;
+        total_memory_mb += memory_estimate;
+        
+        if memory_estimate > LARGE_IMAGE_THRESHOLD_MB {
+            large_image_count += 1;
+        }
+    }
+    
+    // Check total memory limit
+    let total_memory_mb_u64 = total_memory_mb.ceil() as u64;
+    if total_memory_mb_u64 > MAX_BATCH_MEMORY_MB {
+        return Err(CompressionError::BatchMemoryLimitExceeded(
+            total_memory_mb_u64,
+            MAX_BATCH_MEMORY_MB,
+        ));
+    }
+    
+    // Check if we have enough available memory (simplified check)
+    // In a real implementation, this could query actual system memory
+    let required_with_buffer = total_memory_mb_u64 + MIN_AVAILABLE_MEMORY_MB;
+    if required_with_buffer > MAX_BATCH_MEMORY_MB + MIN_AVAILABLE_MEMORY_MB {
+        return Err(CompressionError::InsufficientMemory(
+            total_memory_mb_u64,
+            MAX_BATCH_MEMORY_MB,
+        ));
+    }
+    
+    Ok((total_memory_mb, large_image_count))
+}
 
 pub fn batch_compress_images(
     input: String,
@@ -33,6 +118,24 @@ pub fn batch_compress_images(
 
     println!("📊 Found {} image files to process", total_files);
 
+    // Security: Validate batch memory requirements before processing
+    println!("🔍 Validating batch memory requirements...");
+    let (estimated_memory_mb, large_image_count) = validate_batch_memory_limits(&image_files)?;
+    
+    println!("📊 Batch validation complete:");
+    println!("  📁 Total files: {}", total_files);
+    println!("  💾 Estimated memory usage: {:.1} MB", estimated_memory_mb);
+    println!("  📏 Large images (>{}MB): {}", LARGE_IMAGE_THRESHOLD_MB, large_image_count);
+    
+    // Adjust parallelism based on large image count to prevent memory exhaustion
+    let max_parallelism = if large_image_count > MAX_CONCURRENT_LARGE_IMAGES {
+        MAX_CONCURRENT_LARGE_IMAGES
+    } else {
+        rayon::current_num_threads().min(total_files)
+    };
+    
+    println!("⚙️  Using {} parallel threads for processing", max_parallelism);
+
     // 创建输出目录
     fs::create_dir_all(&output)
         .map_err(|_| CompressionError::DirectoryCreationFailed(output.clone()))?;
@@ -45,28 +148,60 @@ pub fn batch_compress_images(
     let total_size_before = Arc::new(AtomicUsize::new(0));
     let total_size_after = Arc::new(AtomicUsize::new(0));
 
-    // 使用Rayon并行处理
-    let results: Vec<Result<()>> = image_files
-        .into_par_iter()
-        .map(|input_path| {
-            let processed_count = processed_count.clone();
-            let total_size_before = total_size_before.clone();
-            let total_size_after = total_size_after.clone();
+    // Security: Use limited parallelism based on memory requirements
+    let results: Vec<Result<()>> = if large_image_count > MAX_CONCURRENT_LARGE_IMAGES {
+        // For batches with many large images, use chunked processing to limit memory usage
+        let chunk_size = MAX_CONCURRENT_LARGE_IMAGES.max(1);
+        image_files
+            .chunks(chunk_size)
+            .flat_map(|chunk| {
+                chunk
+                    .into_par_iter()
+                    .map(|input_path| {
+                        let processed_count = processed_count.clone();
+                        let total_size_before = total_size_before.clone();
+                        let total_size_after = total_size_after.clone();
 
-            match process_single_image(&input_path, &output, &options) {
-                Ok((before_size, after_size)) => {
-                    total_size_before.fetch_add(before_size, Ordering::Relaxed);
-                    total_size_after.fetch_add(after_size, Ordering::Relaxed);
-                    processed_count.fetch_add(1, Ordering::Relaxed);
-                    Ok(())
+                        match process_single_image(&input_path, &output, &options) {
+                            Ok((before_size, after_size)) => {
+                                total_size_before.fetch_add(before_size, Ordering::Relaxed);
+                                total_size_after.fetch_add(after_size, Ordering::Relaxed);
+                                processed_count.fetch_add(1, Ordering::Relaxed);
+                                Ok(())
+                            }
+                            Err(e) => {
+                                eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                                Err(e)
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    } else {
+        // Standard parallel processing for smaller batches
+        image_files
+            .into_par_iter()
+            .map(|input_path| {
+                let processed_count = processed_count.clone();
+                let total_size_before = total_size_before.clone();
+                let total_size_after = total_size_after.clone();
+
+                match process_single_image(&input_path, &output, &options) {
+                    Ok((before_size, after_size)) => {
+                        total_size_before.fetch_add(before_size, Ordering::Relaxed);
+                        total_size_after.fetch_add(after_size, Ordering::Relaxed);
+                        processed_count.fetch_add(1, Ordering::Relaxed);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                        Err(e)
+                    }
                 }
-                Err(e) => {
-                    eprintln!("❌ Failed to process {:?}: {}", input_path, e);
-                    Err(e)
-                }
-            }
-        })
-        .collect();
+            })
+            .collect()
+    };
 
     main_progress.finish_with_message("✅ Batch compression complete");
 
@@ -372,5 +507,93 @@ mod tests {
         let pattern = format!("{}/*.jpg", temp_dir.path().to_string_lossy());
         let files = collect_image_files(&pattern, false).unwrap();
         assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn test_estimate_image_memory_usage() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.jpg");
+        
+        // Create a test file with known size (1KB)
+        let mut file = File::create(&test_file).unwrap();
+        let data = vec![0u8; 1024]; // 1KB of data
+        file.write_all(&data).unwrap();
+
+        let memory_estimate = estimate_image_memory_usage(&test_file).unwrap();
+        
+        // JPEG multiplier is 4.0, so 1KB file should estimate ~4KB memory (0.004MB)
+        assert!(memory_estimate > 0.0);
+        assert!(memory_estimate < 1.0); // Should be less than 1MB for 1KB file
+    }
+
+    #[test]
+    fn test_estimate_image_memory_usage_png() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test.png");
+        
+        // Create a test PNG file
+        let mut file = File::create(&test_file).unwrap();
+        let data = vec![0u8; 2048]; // 2KB of data
+        file.write_all(&data).unwrap();
+
+        let memory_estimate = estimate_image_memory_usage(&test_file).unwrap();
+        
+        // PNG multiplier is 3.0, so 2KB file should estimate ~6KB memory
+        assert!(memory_estimate > 0.0);
+        assert!(memory_estimate < 1.0); // Should be less than 1MB for 2KB file
+    }
+
+    #[test]
+    fn test_validate_batch_memory_limits_empty() {
+        let files = vec![];
+        let result = validate_batch_memory_limits(&files).unwrap();
+        assert_eq!(result.0, 0.0); // No memory usage
+        assert_eq!(result.1, 0);   // No large images
+    }
+
+    #[test]
+    fn test_validate_batch_memory_limits_file_count_exceeded() {
+        // Create more files than the limit
+        let mut files = Vec::new();
+        for i in 0..(MAX_BATCH_FILES + 1) {
+            files.push(PathBuf::from(format!("test{}.jpg", i)));
+        }
+
+        let result = validate_batch_memory_limits(&files);
+        assert!(matches!(result, Err(CompressionError::BatchFileLimitExceeded(_, _))));
+    }
+
+    #[test]
+    fn test_validate_batch_memory_limits_with_real_files() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Create some small test files
+        let file1 = temp_dir.path().join("test1.jpg");
+        let file2 = temp_dir.path().join("test2.png");
+        
+        File::create(&file1).unwrap().write_all(&vec![0u8; 1024]).unwrap(); // 1KB
+        File::create(&file2).unwrap().write_all(&vec![0u8; 2048]).unwrap(); // 2KB
+        
+        let files = vec![file1, file2];
+        let result = validate_batch_memory_limits(&files).unwrap();
+        
+        assert!(result.0 > 0.0); // Should have some memory estimate
+        assert_eq!(result.1, 0); // No large images (files are too small)
+    }
+
+    #[test]
+    fn test_validate_batch_memory_limits_large_images() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Create a large test file (simulating a large image)
+        let large_file = temp_dir.path().join("large.jpg");
+        let large_data = vec![0u8; 20 * 1024 * 1024]; // 20MB file
+        File::create(&large_file).unwrap().write_all(&large_data).unwrap();
+        
+        let files = vec![large_file];
+        let result = validate_batch_memory_limits(&files).unwrap();
+        
+        assert!(result.0 > LARGE_IMAGE_THRESHOLD_MB); // Memory estimate should be above threshold
+        assert_eq!(result.1, 1); // Should count as 1 large image
     }
 }

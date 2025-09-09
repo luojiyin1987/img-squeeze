@@ -77,3 +77,10 @@ pub const DEFAULT_WALRUS_PUBLISHER: &str = "https://publisher.walrus-testnet.wal
 
 pub const MAX_IMAGE_DIMENSION: u32 = 16384; // Maximum allowed image dimension
 pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB maximum file size
+
+// Batch processing memory limits
+pub const MAX_BATCH_MEMORY_MB: u64 = 2048; // 2GB maximum total batch memory usage
+pub const MAX_BATCH_FILES: usize = 10000; // Maximum number of files in a batch
+pub const MIN_AVAILABLE_MEMORY_MB: u64 = 512; // Minimum memory to keep available
+pub const LARGE_IMAGE_THRESHOLD_MB: f64 = 50.0; // Images above this size are considered large
+pub const MAX_CONCURRENT_LARGE_IMAGES: usize = 2; // Maximum concurrent large image processing

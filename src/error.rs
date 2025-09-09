@@ -38,6 +38,15 @@ pub enum CompressionError {
 
     #[error("Walrus upload error: {0}")]
     WalrusUpload(String),
+
+    #[error("Batch memory limit exceeded: estimated {0}MB, maximum allowed {1}MB")]
+    BatchMemoryLimitExceeded(u64, u64),
+
+    #[error("Batch file count limit exceeded: {0} files, maximum allowed {1}")]
+    BatchFileLimitExceeded(usize, usize),
+
+    #[error("Insufficient available memory: estimated batch requires {0}MB, but only {1}MB available")]
+    InsufficientMemory(u64, u64),
 }
 
 pub type Result<T> = std::result::Result<T, CompressionError>;
