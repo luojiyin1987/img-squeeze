@@ -2,7 +2,6 @@
 /// 
 /// This module contains helper functions that are used across multiple modules
 /// to reduce code duplication and improve maintainability.
-
 use crate::constants::{SUPPORTED_IMAGE_EXTENSIONS, WALRUS_BLOB_PATH};
 use crate::error::{CompressionError, Result};
 use indicatif::{ProgressBar, ProgressStyle};

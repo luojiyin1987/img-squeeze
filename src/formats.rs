@@ -2,7 +2,6 @@
 /// 
 /// This module provides type-safe image format handling, replacing string-based
 /// format operations with proper enums and validation.
-
 use crate::error::{CompressionError, Result};
 use image::ImageFormat;
 use std::fmt;
@@ -31,7 +30,7 @@ impl OutputFormat {
     }
 
     /// Convert to the image crate's ImageFormat
-    pub fn to_image_format(&self) -> ImageFormat {
+    pub fn to_image_format(self) -> ImageFormat {
         match self {
             OutputFormat::Jpeg => ImageFormat::Jpeg,
             OutputFormat::Png => ImageFormat::Png,

@@ -140,8 +140,6 @@ fn upload_image_to_walrus(
     Ok(())
 }
 
-/// Remove the old build_walrus_access_url function since it's now in utils
-
 /// Display comprehensive information about an image file
 /// 
 /// # Arguments

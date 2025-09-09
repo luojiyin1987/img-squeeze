@@ -2,7 +2,6 @@
 /// 
 /// This module contains all the default values, magic numbers, and configuration
 /// constants used throughout the application.
-
 /// Default compression quality (1-100 scale)
 pub const DEFAULT_QUALITY: u8 = 80;
 

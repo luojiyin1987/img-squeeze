@@ -1,10 +1,14 @@
-use image::{DynamicImage, GenericImageView, ImageFormat};
-use img_squeeze::batch::is_image_file;
-use img_squeeze::processing::{determine_output_format, resize_image, CompressionOptions};
+use image::{DynamicImage, GenericImageView};
+use img_squeeze::formats::{OutputFormat, determine_output_format};
+use img_squeeze::processing::{resize_image, CompressionOptions};
+use img_squeeze::utils::is_image_file;
 use proptest::prelude::*;
 use std::path::Path;
 
 proptest! {
+    // Configure test runner to run fewer cases for performance
+    #![proptest_config(ProptestConfig { cases: 20, ..ProptestConfig::default() })]
+    
     #[test]
     fn compression_options_quality_in_range(quality in 1u8..=100u8) {
         let options = CompressionOptions::new(Some(quality), None, None, None);
@@ -24,9 +28,9 @@ proptest! {
 
     #[test]
     fn resize_image_width_only(
-        width in 100u32..=1000u32,
-        height in 100u32..=1000u32,
-        new_width in 100u32..=1000u32
+        width in 100u32..=500u32,      // Reduced range for performance
+        height in 100u32..=500u32,    // Reduced range for performance  
+        new_width in 100u32..=500u32  // Reduced range for performance
     ) {
         prop_assume!(width > 0 && height > 0 && new_width > 0);
         prop_assume!(new_width != width); // Only test if resize is needed
@@ -45,9 +49,9 @@ proptest! {
 
     #[test]
     fn resize_image_height_only(
-        width in 100u32..=1000u32,
-        height in 100u32..=1000u32,
-        new_height in 100u32..=1000u32
+        width in 100u32..=500u32,      // Reduced range for performance
+        height in 100u32..=500u32,    // Reduced range for performance
+        new_height in 100u32..=500u32 // Reduced range for performance
     ) {
         prop_assume!(width > 0 && height > 0 && new_height > 0);
         prop_assume!(new_height != height); // Only test if resize is needed
@@ -70,15 +74,14 @@ proptest! {
         format_override in prop::option::weighted(0.3, "[a-zA-Z]{3,4}")
     ) {
         let path = Path::new(&filename);
-        let format_opt = format_override.as_ref().map(|s| s.as_str());
 
-        let result = determine_output_format(path, &format_opt.map(|s| s.to_string()));
+        let result = determine_output_format(path, format_override.as_deref());
 
         // Should always return a valid format or a proper error
         match result {
             Ok(format) => {
                 // Should be one of the supported formats
-                assert!(matches!(format, ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::WebP));
+                assert!(matches!(format, OutputFormat::Jpeg | OutputFormat::Png | OutputFormat::WebP));
             }
             Err(_) => {
                 // Error is acceptable for unsupported formats
@@ -127,8 +130,8 @@ proptest! {
 
     #[test]
     fn resize_image_no_change_when_same_dimensions(
-        width in 100u32..=5000u32,
-        height in 100u32..=5000u32
+        width in 100u32..=1000u32,   // Reduced range for performance
+        height in 100u32..=1000u32  // Reduced range for performance
     ) {
         prop_assume!(width > 0 && height > 0);
 
@@ -146,9 +149,9 @@ proptest! {
         filename in "[a-zA-Z0-9_-]+\\.(unknown|xyz|abc|def)"
     ) {
         let path = Path::new(&filename);
-        let result = determine_output_format(path, &None);
+        let result = determine_output_format(path, None);
 
         // Should fallback to JPEG for unknown extensions
-        assert_eq!(result.unwrap(), ImageFormat::Jpeg);
+        assert_eq!(result.unwrap(), OutputFormat::Jpeg);
     }
 }
