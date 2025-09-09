@@ -81,8 +81,8 @@ mod tests {
     #[test]
     fn test_walrus_options_default() {
         let options = WalrusOptions::default();
-        assert_eq!(options.aggregator_url, "https://walrus-testnet.aggregator.walrus.space");
-        assert_eq!(options.publisher_url, "https://walrus-testnet.publisher.walrus.space");
+        assert_eq!(options.aggregator_url, "https://aggregator.walrus-testnet.walrus.space");
+        assert_eq!(options.publisher_url, "https://publisher.walrus-testnet.walrus.space");
         assert_eq!(options.epochs, Some(10));
     }
 
