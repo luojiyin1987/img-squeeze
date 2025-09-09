@@ -65,8 +65,8 @@ review_config:
   # tone: "neutral" # 可选 "friendly", "critical", "neutral"
 
   # 触发审查的PR标签 (如果 review_type 是 "manual")
-  labels:
-    - "review-me"
+  # labels:
+  #   - "review-me"
 
   # 是否审查草稿PR
   # draft_pr_review: false
