@@ -1,7 +1,7 @@
-use crate::constants::{DEFAULT_EPOCHS, DEFAULT_WALRUS_AGGREGATOR, DEFAULT_WALRUS_PUBLISHER};
+use crate::constants::{DEFAULT_EPOCHS, DEFAULT_WALRUS_AGGREGATOR, DEFAULT_WALRUS_PUBLISHER, MAX_FILE_SIZE};
 use crate::error::{CompressionError, Result};
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::path::Path;
 use walrus_rs::WalrusClient;
 
@@ -38,15 +38,33 @@ impl WalrusOptions {
     }
 }
 
+/// Uploads a file to Walrus storage asynchronously with memory-efficient file handling
+/// 
+/// # Arguments
+/// * `file_path` - Path to the file to upload
+/// * `options` - Walrus storage configuration options
+/// 
+/// # Returns
+/// * `Ok(blob_id)` - The unique blob ID for the uploaded file
+/// * `Err(CompressionError)` - If upload fails or file is too large
 pub async fn upload_to_walrus_async(file_path: &Path, options: &WalrusOptions) -> Result<String> {
     if !file_path.exists() {
         return Err(CompressionError::FileNotFound(file_path.to_path_buf()));
     }
 
-    let mut file = File::open(file_path).map_err(CompressionError::Io)?;
+    // Check file size before loading to prevent memory exhaustion
+    let file_metadata = std::fs::metadata(file_path).map_err(CompressionError::Io)?;
+    let file_size = file_metadata.len();
+    
+    if file_size > MAX_FILE_SIZE {
+        return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
+    }
 
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).map_err(CompressionError::Io)?;
+    // Use buffered reading for better memory efficiency
+    let file = File::open(file_path).map_err(CompressionError::Io)?;
+    let mut reader = BufReader::new(file);
+    let mut data = Vec::with_capacity(file_size as usize);
+    reader.read_to_end(&mut data).map_err(CompressionError::Io)?;
 
     let client =
         WalrusClient::new(&options.aggregator_url, &options.publisher_url).map_err(|e| {

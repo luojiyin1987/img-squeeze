@@ -426,4 +426,37 @@ mod tests {
         let result = load_image_with_metadata(path);
         assert!(matches!(result, Err(CompressionError::FileNotFound(_))));
     }
+
+    #[test]
+    fn test_compression_options_with_constants() {
+        let options = CompressionOptions::new(
+            Some(DEFAULT_QUALITY),
+            Some(800),
+            Some(600),
+            Some("png".to_string())
+        ).unwrap();
+        assert_eq!(options.quality, DEFAULT_QUALITY);
+        assert_eq!(options.width, Some(800));
+        assert_eq!(options.height, Some(600));
+        assert_eq!(options.format, Some("png".to_string()));
+    }
+
+    #[test]
+    fn test_compression_options_boundary_values() {
+        // Test minimum valid quality
+        let options = CompressionOptions::new(Some(MIN_QUALITY), None, None, None).unwrap();
+        assert_eq!(options.quality, MIN_QUALITY);
+
+        // Test maximum valid quality
+        let options = CompressionOptions::new(Some(MAX_QUALITY), None, None, None).unwrap();
+        assert_eq!(options.quality, MAX_QUALITY);
+
+        // Test below minimum
+        let result = CompressionOptions::new(Some(MIN_QUALITY - 1), None, None, None);
+        assert!(matches!(result, Err(CompressionError::InvalidQuality(_))));
+
+        // Test above maximum
+        let result = CompressionOptions::new(Some(MAX_QUALITY + 1), None, None, None);
+        assert!(matches!(result, Err(CompressionError::InvalidQuality(_))));
+    }
 }

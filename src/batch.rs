@@ -1,3 +1,4 @@
+use crate::constants::MAX_BATCH_SIZE;
 use crate::error::{CompressionError, Result};
 use crate::processing::{CompressionOptions, process_image_pipeline};
 use glob::glob;
@@ -29,6 +30,15 @@ pub fn batch_compress_images(
     if total_files == 0 {
         println!("⚠️  No image files found in the input path");
         return Ok(());
+    }
+
+    // Security: Limit batch size to prevent resource exhaustion
+    if total_files > MAX_BATCH_SIZE {
+        println!("⚠️  Too many files ({} > {}). Consider processing in smaller batches.", 
+                total_files, MAX_BATCH_SIZE);
+        return Err(CompressionError::NoImageFilesFound(
+            format!("Batch size {} exceeds maximum allowed {}", total_files, MAX_BATCH_SIZE)
+        ));
     }
 
     println!("📊 Found {} image files to process", total_files);

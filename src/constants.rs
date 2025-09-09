@@ -77,3 +77,5 @@ pub const DEFAULT_WALRUS_PUBLISHER: &str = "https://publisher.walrus-testnet.wal
 
 pub const MAX_IMAGE_DIMENSION: u32 = 16384; // Maximum allowed image dimension
 pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB maximum file size
+pub const MAX_BATCH_SIZE: usize = 1000; // Maximum number of files to process in one batch
+pub const MEMORY_CHUNK_SIZE: usize = 8192; // Buffer size for streaming operations
