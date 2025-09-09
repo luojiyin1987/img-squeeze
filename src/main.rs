@@ -10,7 +10,7 @@ use clap::Parser;
 use cli::{Args, Commands};
 use error::Result;
 use info::{get_image_info, print_detailed_info};
-use processing::{compress_image, CompressionOptions};
+use processing::{compress_image, CompressionOptions, validate_file_exists};
 use rayon::ThreadPoolBuilder;
 use std::path::Path;
 use walrus::{upload_to_walrus_sync, WalrusOptions};

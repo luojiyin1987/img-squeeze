@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::validate_file_exists;
+use crate::processing::validate_file_exists;
 use image::{DynamicImage, GenericImageView, ImageReader};
 use std::fs;
 use std::path::Path;
