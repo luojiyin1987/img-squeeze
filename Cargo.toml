@@ -1,11 +1,24 @@
 [package]
 name = "img-squeeze"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["luojiyin <luojiyin@hotmail.com>"]
+description = "A fast and efficient image compression tool with Walrus storage support"
+license = "MIT"
+repository = "https://github.com/luojiyin1987/img-squeeze"
+homepage = "https://github.com/luojiyin1987/img-squeeze"
+readme = "README.md"
+keywords = ["image", "compression", "cli", "walrus", "blockchain"]
+categories = ["command-line-utilities", "multimedia::images", "compression"]
+exclude = ["target/", "tests/", "benches/", "*.png", "*.jpg", "*.webp"]
 
 [lib]
 name = "img_squeeze"
 path = "src/lib.rs"
+
+[[bin]]
+name = "img-squeeze"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
