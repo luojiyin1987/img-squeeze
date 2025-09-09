@@ -1,17 +1,30 @@
 use crate::error::{CompressionError, Result};
+use crate::formats::OutputFormat;
 use crate::processing::{
     load_image_with_metadata, process_and_save_image, resize_image, CompressionOptions,
 };
+use crate::utils::is_image_file;
 use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use walkdir::WalkDir;
 
+/// Process multiple images in parallel
+/// 
+/// # Arguments
+/// * `input` - Input directory path or glob pattern
+/// * `output` - Output directory path
+/// * `options` - Compression options to apply to all images
+/// * `recursive` - Whether to process subdirectories recursively
+/// 
+/// # Returns
+/// * `Ok(())` on success, `Err(CompressionError)` on failure
 pub fn batch_compress_images(
     input: String,
     output: PathBuf,
@@ -24,7 +37,7 @@ pub fn batch_compress_images(
 
     let start_time = Instant::now();
 
-    // 收集所有图片文件
+    // Collect all image files
     let image_files = collect_image_files(&input, recursive)?;
     let total_files = image_files.len();
 
@@ -35,11 +48,11 @@ pub fn batch_compress_images(
 
     println!("📊 Found {} image files to process", total_files);
 
-    // 创建输出目录
+    // Create output directory
     fs::create_dir_all(&output)
         .map_err(|_| CompressionError::DirectoryCreationFailed(output.clone()))?;
 
-    // 设置进度条
+    // Setup progress tracking
     let main_progress = ProgressBar::new(total_files as u64);
     main_progress.set_style(ProgressStyle::default_bar());
 
@@ -47,7 +60,7 @@ pub fn batch_compress_images(
     let total_size_before = Arc::new(AtomicUsize::new(0));
     let total_size_after = Arc::new(AtomicUsize::new(0));
 
-    // 使用Rayon并行处理
+    // Process files in parallel using Rayon
     let results: Vec<Result<()>> = image_files
         .into_par_iter()
         .map(|input_path| {
@@ -72,44 +85,23 @@ pub fn batch_compress_images(
 
     main_progress.finish_with_message("✅ Batch compression complete");
 
-    // 输出统计信息
-    let total_before = total_size_before.load(Ordering::Relaxed);
-    let total_after = total_size_after.load(Ordering::Relaxed);
-    let compression_ratio = if total_before > 0 {
-        ((total_before as f64 - total_after as f64) / total_before as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    let elapsed_time = start_time.elapsed();
-
-    println!("\n📊 Batch Compression Summary:");
-    println!(
-        "  📁 Total files processed: {}",
-        processed_count.load(Ordering::Relaxed)
-    );
-    println!("  📊 Total original size: {} bytes", total_before);
-    println!("  📊 Total compressed size: {} bytes", total_after);
-    println!("  🎯 Overall compression ratio: {:.1}%", compression_ratio);
-    println!("  ⏱️  Total time: {:?}", elapsed_time);
-    println!(
-        "  ⚡ Average speed: {:.2} files/second",
-        processed_count.load(Ordering::Relaxed) as f64 / elapsed_time.as_secs_f64()
-    );
-
-    // 检查是否有失败的文件
-    let failed_count = results.iter().filter(|r| r.is_err()).count();
-    if failed_count > 0 {
-        println!("  ⚠️  Failed files: {}", failed_count);
-    }
+    print_batch_summary(start_time, &processed_count, &total_size_before, &total_size_after, &results);
 
     Ok(())
 }
 
+/// Collect image files from input path or pattern
+/// 
+/// # Arguments
+/// * `input` - Input path (file, directory, or glob pattern)
+/// * `recursive` - Whether to search subdirectories recursively
+/// 
+/// # Returns
+/// * `Ok(Vec<PathBuf>)` containing found image files, or `Err(CompressionError)`
 pub fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
     let mut image_files = Vec::new();
 
-    // 检查输入是文件还是目录
+    // Check if input is a file or directory
     let input_path = Path::new(input);
 
     if input_path.exists() && input_path.is_file() {
@@ -145,36 +137,62 @@ pub fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>>
     Ok(image_files)
 }
 
-pub fn is_image_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(|s| s.to_str())
-        .map(|ext| {
-            matches!(
-                ext.to_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif"
-            )
-        })
-        .unwrap_or(false)
+/// Print comprehensive batch processing summary
+/// 
+/// # Arguments
+/// * `start_time` - When batch processing started
+/// * `processed_count` - Atomic counter of processed files
+/// * `total_size_before` - Atomic counter of original file sizes
+/// * `total_size_after` - Atomic counter of compressed file sizes
+/// * `results` - Results from parallel processing
+fn print_batch_summary(
+    start_time: Instant,
+    processed_count: &Arc<AtomicUsize>,
+    total_size_before: &Arc<AtomicUsize>,
+    total_size_after: &Arc<AtomicUsize>,
+    results: &[Result<()>],
+) {
+    let total_before = total_size_before.load(Ordering::Relaxed);
+    let total_after = total_size_after.load(Ordering::Relaxed);
+    let compression_ratio = if total_before > 0 {
+        ((total_before as f64 - total_after as f64) / total_before as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let elapsed_time = start_time.elapsed();
+    let processed_files = processed_count.load(Ordering::Relaxed);
+
+    println!("\n📊 Batch Compression Summary:");
+    println!("  📁 Total files processed: {}", processed_files);
+    println!("  📊 Total original size: {} bytes", total_before);
+    println!("  📊 Total compressed size: {} bytes", total_after);
+    println!("  🎯 Overall compression ratio: {:.1}%", compression_ratio);
+    println!("  ⏱️  Total time: {:?}", elapsed_time);
+    
+    if elapsed_time.as_secs_f64() > 0.0 {
+        println!(
+            "  ⚡ Average speed: {:.2} files/second",
+            processed_files as f64 / elapsed_time.as_secs_f64()
+        );
+    }
+
+    // Check for failed files
+    let failed_count = results.iter().filter(|r| r.is_err()).count();
+    if failed_count > 0 {
+        println!("  ⚠️  Failed files: {}", failed_count);
+    }
 }
 
-fn process_single_image(
-    input_path: &Path,
-    output_dir: &Path,
-    options: &CompressionOptions,
-) -> Result<(usize, usize)> {
-    // 生成输出路径
-    let output_path = generate_output_path(input_path, output_dir, &options.format)?;
-
-    // 处理图片
-    let (mut img, original_size) = load_image_with_metadata(input_path)?;
-
-    resize_image(&mut img, options);
-
-    let compressed_size = process_and_save_image(&img, &output_path, options)?;
-
-    Ok((original_size as usize, compressed_size as usize))
-}
-
+/// Generate output file path for processed image
+/// 
+/// # Arguments
+/// * `input_path` - Original image file path
+/// * `output_dir` - Output directory
+/// * `format` - Optional format override string
+/// 
+/// # Returns
+/// * `Ok(PathBuf)` containing the output path, or `Err(CompressionError)`
 pub fn generate_output_path(
     input_path: &Path,
     output_dir: &Path,
@@ -185,13 +203,13 @@ pub fn generate_output_path(
         .ok_or_else(|| CompressionError::UnsupportedFormat("Invalid file name".to_string()))?;
 
     let extension = if let Some(fmt) = format {
-        match fmt.to_lowercase().as_str() {
-            "jpeg" | "jpg" => "jpg",
-            "png" => "png",
-            "webp" => "webp",
-            _ => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
+        // Convert format string to OutputFormat enum and get extension
+        match OutputFormat::from_str(fmt) {
+            Ok(output_format) => output_format.extension(),
+            Err(_) => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else {
+        // Keep original extension, defaulting to jpg
         input_path
             .extension()
             .and_then(|s| s.to_str())
@@ -202,9 +220,37 @@ pub fn generate_output_path(
     Ok(output_dir.join(output_filename))
 }
 
+/// Process a single image file
+/// 
+/// # Arguments
+/// * `input_path` - Path to input image file
+/// * `output_dir` - Output directory  
+/// * `options` - Compression options
+/// 
+/// # Returns
+/// * `Ok((usize, usize))` containing (original_size, compressed_size), or `Err(CompressionError)`
+fn process_single_image(
+    input_path: &Path,
+    output_dir: &Path,
+    options: &CompressionOptions,
+) -> Result<(usize, usize)> {
+    // Generate output path
+    let output_path = generate_output_path(input_path, output_dir, &options.format)?;
+
+    // Process image
+    let (mut img, original_size) = load_image_with_metadata(input_path)?;
+
+    resize_image(&mut img, options);
+
+    let compressed_size = process_and_save_image(&img, &output_path, options)?;
+
+    Ok((original_size as usize, compressed_size as usize))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::is_image_file;
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
