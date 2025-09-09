@@ -74,3 +74,6 @@ impl SqueezeImageFormat {
 
 pub const DEFAULT_WALRUS_AGGREGATOR: &str = "https://aggregator.walrus-testnet.walrus.space";
 pub const DEFAULT_WALRUS_PUBLISHER: &str = "https://publisher.walrus-testnet.walrus.space";
+
+pub const MAX_IMAGE_DIMENSION: u32 = 16384; // Maximum allowed image dimension
+pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB maximum file size

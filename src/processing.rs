@@ -1,4 +1,9 @@
 use crate::error::{CompressionError, Result};
+use crate::constants::{
+    DEFAULT_QUALITY, MIN_QUALITY, MAX_QUALITY,
+    ZOPFLI_ITERATIONS, LIBDEFLATER_HIGH_LEVEL, LIBDEFLATER_LOW_LEVEL,
+    MAX_IMAGE_DIMENSION, MAX_FILE_SIZE
+};
 use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
 use indicatif::{ProgressBar, ProgressStyle};
 use oxipng::{Deflaters, InFile, Options, OutFile};
@@ -21,8 +26,8 @@ impl CompressionOptions {
         height: Option<u32>,
         format: Option<String>,
     ) -> Result<Self> {
-        let quality = quality.unwrap_or(80);
-        if !(1..=100).contains(&quality) {
+        let quality = quality.unwrap_or(DEFAULT_QUALITY);
+        if !(MIN_QUALITY..=MAX_QUALITY).contains(&quality) {
             return Err(CompressionError::InvalidQuality(quality));
         }
 
@@ -35,7 +40,23 @@ impl CompressionOptions {
     }
 }
 
-/// Common utility function to validate file existence
+/// Validates that a file exists at the given path.
+/// 
+/// # Arguments
+/// * `path` - The path to check for existence
+/// 
+/// # Returns
+/// * `Ok(())` if the file exists
+/// * `Err(CompressionError::FileNotFound)` if the file does not exist
+/// 
+/// # Example
+/// ```
+/// use std::path::Path;
+/// use img_squeeze::validate_file_exists;
+/// 
+/// let result = validate_file_exists(Path::new("nonexistent.jpg"));
+/// assert!(result.is_err());
+/// ```
 pub fn validate_file_exists(path: &Path) -> Result<()> {
     if !path.exists() {
         return Err(CompressionError::FileNotFound(path.to_path_buf()));
@@ -45,7 +66,20 @@ pub fn validate_file_exists(path: &Path) -> Result<()> {
 
 /// Core image processing pipeline that handles the common workflow:
 /// load -> resize -> process -> save
-/// Returns (original_size, compressed_size)
+/// 
+/// # Arguments
+/// * `input_path` - Path to the input image file
+/// * `output_path` - Path where the processed image will be saved
+/// * `options` - Compression and processing options
+/// 
+/// # Returns
+/// * `Ok((original_size, compressed_size))` - Tuple of file sizes in bytes
+/// * `Err(CompressionError)` - If any processing step fails
+/// 
+/// # Security
+/// - Validates file existence and canonical paths to prevent directory traversal
+/// - Enforces maximum file size and image dimension limits
+/// - Uses secure temporary file handling
 pub fn process_image_pipeline(
     input_path: &Path,
     output_path: &Path,
@@ -63,6 +97,20 @@ pub fn process_image_pipeline(
     Ok((original_size, compressed_size))
 }
 
+/// Loads an image file and returns it along with file metadata.
+/// 
+/// # Arguments
+/// * `input_path` - Path to the image file to load
+/// 
+/// # Returns
+/// * `Ok((image, file_size))` - The loaded image and its file size in bytes
+/// * `Err(CompressionError)` - If loading fails or security limits are exceeded
+/// 
+/// # Security Features
+/// - Validates file existence and canonical paths to prevent directory traversal
+/// - Enforces maximum file size limit to prevent DoS attacks
+/// - Validates image dimensions to prevent memory exhaustion
+/// - Checks file size before attempting to load the image
 pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
     validate_file_exists(input_path)?;
 
@@ -70,16 +118,19 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
     let canonical_path = input_path.canonicalize()
         .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
     
+    // Check file size before loading to prevent DoS attacks
+    let file_size = fs::metadata(&canonical_path)?.len();
+    if file_size > MAX_FILE_SIZE {
+        return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
+    }
+    
     let img = ImageReader::open(&canonical_path)?.decode()?;
     
     // Security: Validate image dimensions to prevent DoS attacks
     let (width, height) = img.dimensions();
-    const MAX_DIMENSION: u32 = 16384; // Reasonable limit for image dimensions
-    if width > MAX_DIMENSION || height > MAX_DIMENSION {
-        return Err(CompressionError::InvalidQuality(0)); // Reuse existing error type
+    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(CompressionError::InvalidDimensions(width, height, MAX_IMAGE_DIMENSION));
     }
-    
-    let file_size = fs::metadata(&canonical_path)?.len();
 
     Ok((img, file_size))
 }
@@ -216,12 +267,16 @@ pub fn save_image(
             // 根据质量设置调整压缩级别
             if options.quality >= 90 {
                 oxipng_options.deflate = Deflaters::Zopfli {
-                    iterations: NonZeroU8::new(15).unwrap(),
+                    iterations: NonZeroU8::new(ZOPFLI_ITERATIONS).unwrap(),
                 };
             } else if options.quality >= 70 {
-                oxipng_options.deflate = Deflaters::Libdeflater { compression: 12 };
+                oxipng_options.deflate = Deflaters::Libdeflater { 
+                    compression: LIBDEFLATER_HIGH_LEVEL 
+                };
             } else {
-                oxipng_options.deflate = Deflaters::Libdeflater { compression: 8 };
+                oxipng_options.deflate = Deflaters::Libdeflater { 
+                    compression: LIBDEFLATER_LOW_LEVEL 
+                };
             }
 
             // 使用 oxipng 优化文件

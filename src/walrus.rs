@@ -1,3 +1,4 @@
+use crate::constants::{DEFAULT_EPOCHS, DEFAULT_WALRUS_AGGREGATOR, DEFAULT_WALRUS_PUBLISHER};
 use crate::error::{CompressionError, Result};
 use std::fs::File;
 use std::io::Read;
@@ -14,9 +15,9 @@ pub struct WalrusOptions {
 impl Default for WalrusOptions {
     fn default() -> Self {
         Self {
-            aggregator_url: "https://aggregator.walrus-testnet.walrus.space".to_string(),
-            publisher_url: "https://publisher.walrus-testnet.walrus.space".to_string(),
-            epochs: Some(10),
+            aggregator_url: DEFAULT_WALRUS_AGGREGATOR.to_string(),
+            publisher_url: DEFAULT_WALRUS_PUBLISHER.to_string(),
+            epochs: Some(DEFAULT_EPOCHS),
         }
     }
 }
@@ -29,9 +30,9 @@ impl WalrusOptions {
     ) -> Self {
         Self {
             aggregator_url: aggregator_url
-                .unwrap_or_else(|| "https://aggregator.walrus-testnet.walrus.space".to_string()),
+                .unwrap_or_else(|| DEFAULT_WALRUS_AGGREGATOR.to_string()),
             publisher_url: publisher_url
-                .unwrap_or_else(|| "https://publisher.walrus-testnet.walrus.space".to_string()),
+                .unwrap_or_else(|| DEFAULT_WALRUS_PUBLISHER.to_string()),
             epochs,
         }
     }
