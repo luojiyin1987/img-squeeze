@@ -4,6 +4,8 @@ mod processing;
 mod batch;
 mod info;
 mod walrus;
+mod logger;
+mod validation;
 
 use clap::Parser;
 use cli::{Args, Commands};
@@ -12,17 +14,30 @@ use processing::{compress_image, CompressionOptions};
 use batch::batch_compress_images;
 use info::{get_image_info, print_detailed_info};
 use walrus::{WalrusOptions, upload_to_walrus_sync};
+use validation::{validate_input_path, validate_output_path, is_potential_image_file};
 use rayon::ThreadPoolBuilder;
 use std::path::Path;
 
 fn main() -> Result<()> {
     let args = Args::parse();
     
+    // Initialize logging modes
+    logger::set_quiet_mode(args.quiet);
+    logger::set_verbose_mode(args.verbose);
+    
     match args.command {
         Commands::Compress { input, output, quality, width, height, format, threads, exact_resize } => {
             setup_thread_pool(threads);
+            
+            // Validate input and output paths
+            validate_input_path(&input)?;
+            if !is_potential_image_file(&input) {
+                crate::warn!("Input file doesn't have a recognized image extension");
+            }
+            let validated_output = validate_output_path(&output)?;
+            
             let options = CompressionOptions::new(quality, width, height, format, exact_resize)?;
-            compress_image(input, output, options)?;
+            compress_image(input, validated_output, options)?;
         }
         Commands::Batch { input, output, quality, width, height, format, threads, recursive, exact_resize } => {
             setup_thread_pool(threads);

@@ -10,6 +10,12 @@ use std::path::PathBuf;
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
+    
+    #[arg(long, global = true, help = "Suppress output (quiet mode)")]
+    pub quiet: bool,
+    
+    #[arg(short, long, global = true, help = "Verbose output")]
+    pub verbose: bool,
 }
 
 #[derive(Subcommand)]

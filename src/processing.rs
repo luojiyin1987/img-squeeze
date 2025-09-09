@@ -1,4 +1,5 @@
 use crate::error::{CompressionError, Result};
+use crate::{info, verbose};
 use image::{DynamicImage, ImageFormat, ImageReader, GenericImageView};
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
@@ -51,22 +52,22 @@ pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
             // Both dimensions specified - resize to exact dimensions
             if target_width > 0 && target_height > 0 && 
                (target_width != current_width || target_height != current_height) {
-                println!("🔄 Resizing to exact dimensions: {}x{}", target_width, target_height);
+                verbose!("Resizing to exact dimensions: {}x{}", target_width, target_height);
                 *img = img.resize_exact(target_width, target_height, image::imageops::FilterType::Lanczos3);
-                println!("✅ Resized to: {}x{}", target_width, target_height);
+                info!("✅ Resized to: {}x{}", target_width, target_height);
             }
         }
         (Some(target_width), None) => {
             // Only width specified
             if target_width > 0 && target_width != current_width {
                 if options.exact_resize {
-                    println!("🔄 Resizing width exactly (may distort aspect ratio)...");
+                    verbose!("Resizing width exactly (may distort aspect ratio)...");
                     *img = img.resize_exact(target_width, current_height, image::imageops::FilterType::Lanczos3);
-                    println!("✅ Resized to width: {} (height: {})", target_width, current_height);
+                    info!("✅ Resized to width: {} (height: {})", target_width, current_height);
                 } else {
-                    println!("🔄 Resizing width while maintaining aspect ratio...");
+                    verbose!("Resizing width while maintaining aspect ratio...");
                     *img = img.resize(target_width, u32::MAX, image::imageops::FilterType::Lanczos3);
-                    println!("✅ Resized to width: {} (height: {})", target_width, img.height());
+                    info!("✅ Resized to width: {} (height: {})", target_width, img.height());
                 }
             }
         }
@@ -74,13 +75,13 @@ pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
             // Only height specified
             if target_height > 0 && target_height != current_height {
                 if options.exact_resize {
-                    println!("🔄 Resizing height exactly (may distort aspect ratio)...");
+                    verbose!("Resizing height exactly (may distort aspect ratio)...");
                     *img = img.resize_exact(current_width, target_height, image::imageops::FilterType::Lanczos3);
-                    println!("✅ Resized to height: {} (width: {})", target_height, current_width);
+                    info!("✅ Resized to height: {} (width: {})", target_height, current_width);
                 } else {
-                    println!("🔄 Resizing height while maintaining aspect ratio...");
+                    verbose!("Resizing height while maintaining aspect ratio...");
                     *img = img.resize(u32::MAX, target_height, image::imageops::FilterType::Lanczos3);
-                    println!("✅ Resized to height: {} (width: {})", target_height, img.width());
+                    info!("✅ Resized to height: {} (width: {})", target_height, img.width());
                 }
             }
         }
@@ -108,17 +109,22 @@ pub fn compress_image(
     output: PathBuf,
     options: CompressionOptions,
 ) -> Result<()> {
-    println!("🗜️  Compressing image: {:?}", input);
-    println!("📁 Output: {:?}", output);
+    info!("🗜️  Compressing image: {:?}", input);
+    verbose!("Output: {:?}", output);
     
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner:.green} {msg}").unwrap());
-    pb.set_message("Loading image...");
+    let pb = if crate::logger::is_quiet() {
+        ProgressBar::hidden()
+    } else {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::default_spinner().template("{spinner:.green} {msg}").unwrap());
+        pb.set_message("Loading image...");
+        pb
+    };
     
     let (mut img, original_size) = load_image_with_metadata(&input)?;
     pb.finish_with_message("✅ Image loaded");
     
-    println!("📊 Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
+    verbose!("Original size: {} bytes ({}x{})", original_size, img.width(), img.height());
     
     // Resize if needed
     resize_image(&mut img, &options);
@@ -128,13 +134,13 @@ pub fn compress_image(
     pb.finish_with_message("✅ Compression complete");
     let compression_ratio = ((original_size as f64 - compressed_size as f64) / original_size as f64) * 100.0;
     
-    println!("📈 Compressed size: {} bytes", compressed_size);
-    println!("🎯 Compression ratio: {:.1}%", compression_ratio);
+    info!("📈 Compressed size: {} bytes", compressed_size);
+    info!("🎯 Compression ratio: {:.1}%", compression_ratio);
     
     if compression_ratio > 0.0 {
-        println!("✅ Successfully reduced file size by {:.1}%", compression_ratio);
+        info!("✅ Successfully reduced file size by {:.1}%", compression_ratio);
     } else {
-        println!("⚠️  File size increased by {:.1}%", compression_ratio.abs());
+        crate::warn!("File size increased by {:.1}%", compression_ratio.abs());
     }
     
     Ok(())
