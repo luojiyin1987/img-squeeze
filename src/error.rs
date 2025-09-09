@@ -15,6 +15,12 @@ pub enum CompressionError {
     #[error("Invalid quality value: {0}. Must be between 1 and 100")]
     InvalidQuality(u8),
 
+    #[error("Invalid image dimensions: {0}x{1}. Maximum allowed: {2}x{2}")]
+    InvalidDimensions(u32, u32, u32),
+
+    #[error("File too large: {0} bytes. Maximum allowed: {1} bytes")]
+    FileTooLarge(u64, u64),
+
     #[error("Unsupported format: {0}")]
     UnsupportedFormat(String),
 

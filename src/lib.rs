@@ -1,8 +1,10 @@
 pub mod batch;
 pub mod cli;
+pub mod constants;
 pub mod error;
 pub mod info;
 pub mod processing;
+pub mod upload;
 pub mod walrus;
 
 pub use batch::{batch_compress_images, collect_image_files, generate_output_path, is_image_file};
