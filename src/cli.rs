@@ -65,6 +65,21 @@ pub enum Commands {
         recursive: bool,
     },
     
+    #[command(about = "Upload an image to Walrus storage")]
+    Upload {
+        #[arg(help = "Image file to upload")]
+        input: PathBuf,
+        
+        #[arg(short = 'a', long, help = "Walrus aggregator URL")]
+        aggregator_url: Option<String>,
+        
+        #[arg(short = 'p', long, help = "Walrus publisher URL")]
+        publisher_url: Option<String>,
+        
+        #[arg(short = 'e', long, help = "Number of epochs for storage")]
+        epochs: Option<u64>,
+    },
+    
     #[command(about = "Get information about an image")]
     Info {
         #[arg(help = "Image file to analyze")]

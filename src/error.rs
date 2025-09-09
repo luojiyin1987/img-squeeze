@@ -29,6 +29,9 @@ pub enum CompressionError {
     
     #[error("Walkdir error: {0}")]
     WalkdirError(#[from] walkdir::Error),
+    
+    #[error("Walrus upload error: {0}")]
+    WalrusUpload(String),
 }
 
 pub type Result<T> = std::result::Result<T, CompressionError>;
