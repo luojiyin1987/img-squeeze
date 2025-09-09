@@ -14,8 +14,8 @@ pub struct WalrusOptions {
 impl Default for WalrusOptions {
     fn default() -> Self {
         Self {
-            aggregator_url: "https://walrus-testnet.aggregator.walrus.space".to_string(),
-            publisher_url: "https://walrus-testnet.publisher.walrus.space".to_string(),
+            aggregator_url: "https://aggregator.walrus-testnet.walrus.space".to_string(),
+            publisher_url: "https://publisher.walrus-testnet.walrus.space".to_string(),
             epochs: Some(10),
         }
     }
@@ -28,8 +28,8 @@ impl WalrusOptions {
         epochs: Option<u64>,
     ) -> Self {
         Self {
-            aggregator_url: aggregator_url.unwrap_or_else(|| "https://walrus-testnet.aggregator.walrus.space".to_string()),
-            publisher_url: publisher_url.unwrap_or_else(|| "https://walrus-testnet.publisher.walrus.space".to_string()),
+            aggregator_url: aggregator_url.unwrap_or_else(|| "https://aggregator.walrus-testnet.walrus.space".to_string()),
+            publisher_url: publisher_url.unwrap_or_else(|| "https://publisher.walrus-testnet.walrus.space".to_string()),
             epochs,
         }
     }
