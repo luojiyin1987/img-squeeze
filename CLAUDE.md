@@ -31,9 +31,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core Modules
 
 - `main.rs` - Application entry point with command routing and thread pool setup
-- `cli.rs` - Command-line interface definition using clap with three subcommands:
+- `cli.rs` - Command-line interface definition using clap with four subcommands:
   - `compress` - Single image compression with quality, size, and format options
   - `batch` - Batch processing with directory traversal and glob patterns
+  - `upload` - Upload images to Walrus decentralized storage network
   - `info` - Image analysis and compression suggestions
 - `processing.rs` - Core image processing logic:
   - `CompressionOptions` struct for configuration
@@ -45,6 +46,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Directory traversal and glob pattern support
   - Progress tracking and performance statistics
 - `info.rs` - Image analysis and metadata extraction
+- `walrus.rs` - Walrus decentralized storage integration:
+  - `WalrusClient` integration for blockchain-based storage
+  - `WalrusOptions` for configuring aggregator/publisher URLs and epochs
+  - Async upload functionality with proper error handling
 - `error.rs` - Comprehensive error handling with thiserror
 
 ### Key Dependencies
@@ -56,6 +61,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `indicatif` - Progress bars and user feedback
 - `anyhow` and `thiserror` - Error handling
 - `walkdir` and `glob` - File system traversal
+- `walrus_rs` - Walrus decentralized storage client library
+- `tokio` - Async runtime for Walrus operations
 
 ### Project Layout
 
@@ -67,6 +74,7 @@ img-squeeze/
 │   ├── processing.rs   # Core compression logic
 │   ├── batch.rs         # Batch processing
 │   ├── info.rs          # Image analysis
+│   ├── walrus.rs        # Walrus storage integration
 │   └── error.rs         # Error types
 ├── Cargo.toml           # Project configuration
 └── target/              # Build artifacts
@@ -126,6 +134,40 @@ img-squeeze batch "./images/*.jpg" ./compressed -r -q 80 -f webp
 img-squeeze info image.jpg
 ```
 
+### Walrus Upload
+
+```bash
+# Upload with default settings
+img-squeeze upload image.jpg
+
+# Upload with custom aggregator and publisher
+img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -p https://publisher.walrus-testnet.walrus.space
+
+# Upload with custom epochs
+img-squeeze upload image.jpg -e 20
+```
+
+**Upload Output:**
+The upload command provides comprehensive feedback including:
+- Upload progress and status
+- Network endpoints used
+- Blob ID for future reference
+- Direct access URL for the uploaded file
+- File size and storage information
+
+Example output:
+```
+📤 Uploading to Walrus: "image.jpg"
+🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
+🔗 Publisher URL: https://publisher.walrus-testnet.walrus.space
+⏰ Epochs: Some(10)
+✅ Upload successful!
+🆔 Blob ID: 3xAm...V7n9
+🌐 Access URL: https://aggregator.walrus-testnet.walrus.space/v1/blobs/3xAm...V7n9
+📊 File size: 1024 bytes
+💡 You can use the blob ID to retrieve the file later
+```
+
 ## Advanced Architecture Details
 
 ### Compression Flow
@@ -162,6 +204,28 @@ The project uses a centralized error handling approach:
 - Errors are propagated using `?` operator throughout the call stack
 - User-friendly error messages with context (file paths, operation details)
 - Separate error categories for I/O, image processing, validation, and optimization
+
+### Walrus Storage Integration
+
+The tool integrates with the Walrus decentralized storage network for blockchain-based image storage:
+
+- **Real API Integration**: Uses `walrus_rs` library (v0.1.2) for actual network operations
+- **Configurable Endpoints**: Supports custom aggregator and publisher URLs
+- **Epoch Management**: Configurable storage duration through epochs parameter
+- **Async Operations**: Full async/await support for non-blocking uploads
+- **Error Handling**: Comprehensive error handling for network and storage failures
+
+**Default Configuration:**
+- **Aggregator URL**: `https://aggregator.walrus-testnet.walrus.space`
+- **Publisher URL**: `https://publisher.walrus-testnet.walrus.space`
+- **Epochs**: 10 (configurable)
+
+**Upload Process:**
+1. **File Validation** - Check file existence and readability
+2. **Client Creation** - Initialize `WalrusClient` with configured URLs
+3. **Data Reading** - Read file content into memory
+4. **Blob Storage** - Use `client.store_blob()` to upload to Walrus network
+5. **Result Handling** - Extract and return blob ID from storage result
 
 ## Thread Safety Considerations
 
