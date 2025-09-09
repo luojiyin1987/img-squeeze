@@ -1,0 +1,87 @@
+# .coderabbit.yml
+
+# -----------------------------------------------------------------------------
+# 1. PR 摘要配置 (Summarization Configuration)
+# -----------------------------------------------------------------------------
+summarize_config:
+  enabled: true # 是否为每个PR生成摘要
+  # format: "bullet_points" # 摘要格式，可选 "bullet_points", "paragraph"
+  # max_length: 500 # 摘要最大长度
+
+# -----------------------------------------------------------------------------
+# 2. 代码审查配置 (Review Configuration)
+# -----------------------------------------------------------------------------
+review_config:
+  enabled: true # 是否启用代码审查
+  review_type: "auto" # 审查类型: "auto" (自动在PR创建/更新时审查), "manual" (需要手动触发)
+  review_depth: "deep" # 审查深度: "deep" (更详细), "shallow" (更概括)
+  review_scope: "all_changes" # 审查范围: "all_changes" (审查所有变更), "new_changes_only" (只审查新提交的变更)
+
+  # 排除文件/目录，不进行审查
+  exclude_files:
+    - "**/node_modules/**"
+    - "**/*.min.js"
+    - "**/*.lock"
+    - "package-lock.json"
+    - "yarn.lock"
+    - "dist/**"
+    - "build/**"
+    - "docs/**"
+    - ".github/**" # 排除 .github 目录下的文件，例如 CodeRabbit 自己的配置文件
+    - "*.md" # 排除 Markdown 文件
+    # Rust specific exclusions
+    - "target/**" # Rust build artifacts
+    - "**/*.rs.bk" # Rust backup files
+    - "**/*.pdb" # MSVC debug symbols
+    - "**/mutants.out/**" # Cargo mutants output
+    - "Cargo.lock" # Rust dependency lock file
+
+  # 包含文件/目录，只审查这些文件
+  include_files:
+    - "src/**/*.js"
+    - "src/**/*.ts"
+    - "src/**/*.rs"
+    - "backend/**/*.py"
+
+  # 语言特定的审查规则 (示例，具体取决于 CodeRabbit 支持的功能)
+  # language_specific_rules:
+  #   python:
+  #     max_function_length: 50
+  #     enforce_docstrings: true
+  #   javascript:
+  #     enforce_eslint: true
+
+  # 自定义审查提示 (Custom Review Prompts)
+  # 可以引导AI关注特定方面，例如安全性、性能等
+  custom_prompts:
+    - "Pay close attention to Rust-specific safety concerns: buffer overflows, use-after-free, data races, and proper error handling with Result<T,E>."
+    - "Ensure proper resource management and RAII patterns are followed, especially for file handles and temporary files."
+    - "Check for proper usage of Rust's ownership model, borrowing rules, and lifetime annotations."
+    - "Verify that error handling is comprehensive and uses appropriate error types rather than panics."
+    - "Look for opportunities to eliminate code duplication and improve modularity."
+    - "Ensure that all public functions have proper documentation comments following Rust standards."
+
+  # 审查意见的语气
+  # tone: "neutral" # 可选 "friendly", "critical", "neutral"
+
+  # 触发审查的PR标签 (如果 review_type 是 "manual")
+  labels:
+    - "review-me"
+
+  # 是否审查草稿PR
+  # draft_pr_review: false
+
+  # 是否自动批准PR (慎用！通常不建议开启)
+  # auto_approve: false
+
+# -----------------------------------------------------------------------------
+# 3. 聊天配置 (Chat Configuration) - 如果 CodeRabbit 支持
+# -----------------------------------------------------------------------------
+# chat_config:
+#   enabled: true # 是否启用PR评论中的AI聊天功能
+#   model: "gpt-4" # 使用的模型
+
+# -----------------------------------------------------------------------------
+# 4. 其他高级配置 (Advanced Configuration)
+# -----------------------------------------------------------------------------
+# 可以根据 CodeRabbit 的文档添加其他高级设置
