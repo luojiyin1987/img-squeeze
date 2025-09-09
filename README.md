@@ -119,11 +119,19 @@ img-squeeze upload image.jpg
 img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -p https://publisher.walrus-testnet.walrus.space
 
 # 上传并设置存储时长（epochs）
-img-squeeze upload image.jpg -e 20
+img-squeeze upload image.jpg -e 20        # 存储20个epoch，约20天
+
+# 临时上传（1 epoch，约24小时后自动删除）
+img-squeeze upload image.jpg -t
 
 # 组合选项
 img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -e 15
 ```
+
+**临时文件管理：**
+- 使用 `-t` 标志上传临时文件，24小时后自动删除
+- 适合测试、开发、临时分享等场景
+- 无需手动删除，系统自动清理
 
 上传成功后，您将获得：
 - 🆔 **Blob ID** - 用于唯一标识上传的文件
@@ -140,6 +148,21 @@ img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -
 🆔 Blob ID: 3xAm...V7n9
 🌐 Access URL: https://aggregator.walrus-testnet.walrus.space/v1/blobs/3xAm...V7n9
 📊 File size: 1024 bytes
+💡 You can use the blob ID to retrieve the file later
+```
+
+临时上传示例：
+```bash
+📤 Uploading to Walrus: "temp_image.jpg"
+🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
+🔗 Publisher URL: https://publisher.walrus-testnet.walrus.space
+⏰ Epochs: Some(1)
+✅ Upload successful!
+🆔 Blob ID: MZwz...oSE
+🌐 Access URL: https://aggregator.walrus-testnet.walrus.space/v1/blobs/MZwz...oSE
+⏰ Temporary file: Will expire after 1 epoch (~24 hours)
+🔄 Use without -t flag for longer storage
+📊 File size: 406 bytes
 💡 You can use the blob ID to retrieve the file later
 ```
 
