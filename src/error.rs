@@ -45,7 +45,9 @@ pub enum CompressionError {
     #[error("Batch file count limit exceeded: {0} files, maximum allowed {1}")]
     BatchFileLimitExceeded(usize, usize),
 
-    #[error("Insufficient available memory: estimated batch requires {0}MB, but only {1}MB available")]
+    #[error(
+        "Insufficient available memory: estimated batch requires {0}MB, but only {1}MB available"
+    )]
     InsufficientMemory(u64, u64),
 }
 

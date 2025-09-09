@@ -1,9 +1,8 @@
-use crate::error::{CompressionError, Result};
 use crate::constants::{
-    DEFAULT_QUALITY, MIN_QUALITY, MAX_QUALITY,
-    ZOPFLI_ITERATIONS, LIBDEFLATER_HIGH_LEVEL, LIBDEFLATER_LOW_LEVEL,
-    MAX_IMAGE_DIMENSION, MAX_FILE_SIZE
+    DEFAULT_QUALITY, LIBDEFLATER_HIGH_LEVEL, LIBDEFLATER_LOW_LEVEL, MAX_FILE_SIZE,
+    MAX_IMAGE_DIMENSION, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
 };
+use crate::error::{CompressionError, Result};
 use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
 use indicatif::{ProgressBar, ProgressStyle};
 use oxipng::{Deflaters, InFile, Options, OutFile};
@@ -41,19 +40,19 @@ impl CompressionOptions {
 }
 
 /// Validates that a file exists at the given path.
-/// 
+///
 /// # Arguments
 /// * `path` - The path to check for existence
-/// 
+///
 /// # Returns
 /// * `Ok(())` if the file exists
 /// * `Err(CompressionError::FileNotFound)` if the file does not exist
-/// 
+///
 /// # Example
 /// ```
 /// use std::path::Path;
 /// use img_squeeze::validate_file_exists;
-/// 
+///
 /// let result = validate_file_exists(Path::new("nonexistent.jpg"));
 /// assert!(result.is_err());
 /// ```
@@ -66,16 +65,16 @@ pub fn validate_file_exists(path: &Path) -> Result<()> {
 
 /// Core image processing pipeline that handles the common workflow:
 /// load -> resize -> process -> save
-/// 
+///
 /// # Arguments
 /// * `input_path` - Path to the input image file
 /// * `output_path` - Path where the processed image will be saved
 /// * `options` - Compression and processing options
-/// 
+///
 /// # Returns
 /// * `Ok((original_size, compressed_size))` - Tuple of file sizes in bytes
 /// * `Err(CompressionError)` - If any processing step fails
-/// 
+///
 /// # Security
 /// - Validates file existence and canonical paths to prevent directory traversal
 /// - Enforces maximum file size and image dimension limits
@@ -98,14 +97,14 @@ pub fn process_image_pipeline(
 }
 
 /// Loads an image file and returns it along with file metadata.
-/// 
+///
 /// # Arguments
 /// * `input_path` - Path to the image file to load
-/// 
+///
 /// # Returns
 /// * `Ok((image, file_size))` - The loaded image and its file size in bytes
 /// * `Err(CompressionError)` - If loading fails or security limits are exceeded
-/// 
+///
 /// # Security Features
 /// - Validates file existence and canonical paths to prevent directory traversal
 /// - Enforces maximum file size limit to prevent DoS attacks
@@ -115,21 +114,26 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
     validate_file_exists(input_path)?;
 
     // Security: Validate path to prevent directory traversal attacks
-    let canonical_path = input_path.canonicalize()
+    let canonical_path = input_path
+        .canonicalize()
         .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
-    
+
     // Check file size before loading to prevent DoS attacks
     let file_size = fs::metadata(&canonical_path)?.len();
     if file_size > MAX_FILE_SIZE {
         return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
     }
-    
+
     let img = ImageReader::open(&canonical_path)?.decode()?;
-    
+
     // Security: Validate image dimensions to prevent DoS attacks
     let (width, height) = img.dimensions();
     if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
-        return Err(CompressionError::InvalidDimensions(width, height, MAX_IMAGE_DIMENSION));
+        return Err(CompressionError::InvalidDimensions(
+            width,
+            height,
+            MAX_IMAGE_DIMENSION,
+        ));
     }
 
     Ok((img, file_size))
@@ -270,12 +274,12 @@ pub fn save_image(
                     iterations: NonZeroU8::new(ZOPFLI_ITERATIONS).unwrap(),
                 };
             } else if options.quality >= 70 {
-                oxipng_options.deflate = Deflaters::Libdeflater { 
-                    compression: LIBDEFLATER_HIGH_LEVEL 
+                oxipng_options.deflate = Deflaters::Libdeflater {
+                    compression: LIBDEFLATER_HIGH_LEVEL,
                 };
             } else {
-                oxipng_options.deflate = Deflaters::Libdeflater { 
-                    compression: LIBDEFLATER_LOW_LEVEL 
+                oxipng_options.deflate = Deflaters::Libdeflater {
+                    compression: LIBDEFLATER_LOW_LEVEL,
                 };
             }
 

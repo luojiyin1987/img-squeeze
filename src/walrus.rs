@@ -29,10 +29,8 @@ impl WalrusOptions {
         epochs: Option<u64>,
     ) -> Self {
         Self {
-            aggregator_url: aggregator_url
-                .unwrap_or_else(|| DEFAULT_WALRUS_AGGREGATOR.to_string()),
-            publisher_url: publisher_url
-                .unwrap_or_else(|| DEFAULT_WALRUS_PUBLISHER.to_string()),
+            aggregator_url: aggregator_url.unwrap_or_else(|| DEFAULT_WALRUS_AGGREGATOR.to_string()),
+            publisher_url: publisher_url.unwrap_or_else(|| DEFAULT_WALRUS_PUBLISHER.to_string()),
             epochs,
         }
     }

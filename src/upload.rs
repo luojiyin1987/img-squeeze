@@ -5,14 +5,14 @@ use crate::walrus::{upload_to_walrus_sync, WalrusOptions};
 use std::path::Path;
 
 /// Handles uploading an image to Walrus decentralized storage
-/// 
+///
 /// # Arguments
 /// * `input_path` - Path to the image file to upload
 /// * `aggregator_url` - Optional custom aggregator URL (uses default if None)
 /// * `publisher_url` - Optional custom publisher URL (uses default if None)
 /// * `epochs` - Optional number of epochs for storage (uses default if None)
 /// * `temp` - If true, uploads as temporary file with 1 epoch storage
-/// 
+///
 /// # Returns
 /// * `Ok(())` if upload succeeds
 /// * `Err(CompressionError)` if upload fails
@@ -66,11 +66,11 @@ pub fn upload_image_to_walrus(
 }
 
 /// Builds a Walrus network access URL from aggregator URL and blob ID
-/// 
+///
 /// # Arguments
 /// * `aggregator_url` - The base aggregator URL
 /// * `blob_id` - The blob ID returned from storage
-/// 
+///
 /// # Returns
 /// * Complete URL for accessing the stored blob
 fn build_walrus_access_url(aggregator_url: &str, blob_id: &str) -> String {
