@@ -317,9 +317,9 @@ img-squeeze/
 
 如果您遇到问题或有建议，请：
 
-1. 查看 [Issues](https://github.com/yourusername/img-squeeze/issues)
+1. 查看 [Issues](https://github.com/luojiyin1987/img-squeeze/issues)
 2. 创建新的 Issue
-3. 发送邮件至：your.email@example.com
+
 
 ---
 
