@@ -19,14 +19,14 @@ fn main() -> Result<()> {
     let args = Args::parse();
     
     match args.command {
-        Commands::Compress { input, output, quality, width, height, format, threads } => {
+        Commands::Compress { input, output, quality, width, height, format, threads, exact_resize } => {
             setup_thread_pool(threads);
-            let options = CompressionOptions::new(quality, width, height, format)?;
+            let options = CompressionOptions::new(quality, width, height, format, exact_resize)?;
             compress_image(input, output, options)?;
         }
-        Commands::Batch { input, output, quality, width, height, format, threads, recursive } => {
+        Commands::Batch { input, output, quality, width, height, format, threads, recursive, exact_resize } => {
             setup_thread_pool(threads);
-            let options = CompressionOptions::new(quality, width, height, format)?;
+            let options = CompressionOptions::new(quality, width, height, format, exact_resize)?;
             batch_compress_images(input, output, options, recursive)?;
         }
         Commands::Upload { input, aggregator_url, publisher_url, epochs, temp } => {

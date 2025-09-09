@@ -36,6 +36,9 @@ pub enum Commands {
         
         #[arg(short = 'j', long, help = "Number of parallel threads (default: auto)")]
         threads: Option<usize>,
+        
+        #[arg(long, help = "Use exact resize (may distort aspect ratio)")]
+        exact_resize: bool,
     },
     
     #[command(about = "Compress multiple images in parallel")]
@@ -63,6 +66,9 @@ pub enum Commands {
         
         #[arg(short = 'r', long, help = "Recursive directory processing")]
         recursive: bool,
+        
+        #[arg(long, help = "Use exact resize (may distort aspect ratio)")]
+        exact_resize: bool,
     },
     
     #[command(about = "Upload an image to Walrus storage")]

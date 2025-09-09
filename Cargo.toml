@@ -1,7 +1,14 @@
 [package]
 name = "img-squeeze"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "A fast, efficient image compression tool written in Rust with parallel processing, batch compression, and decentralized storage support"
+authors = ["luojiyin1987"]
+license = "MIT"
+repository = "https://github.com/luojiyin1987/img-squeeze"
+keywords = ["image", "compression", "optimization", "parallel", "cli"]
+categories = ["command-line-utilities", "multimedia::images"]
+readme = "README.md"
 
 [lib]
 name = "img_squeeze"

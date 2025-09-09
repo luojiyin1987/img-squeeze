@@ -12,10 +12,11 @@ pub struct CompressionOptions {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub format: Option<String>,
+    pub exact_resize: bool,
 }
 
 impl CompressionOptions {
-    pub fn new(quality: Option<u8>, width: Option<u32>, height: Option<u32>, format: Option<String>) -> Result<Self> {
+    pub fn new(quality: Option<u8>, width: Option<u32>, height: Option<u32>, format: Option<String>, exact_resize: bool) -> Result<Self> {
         let quality = quality.unwrap_or(80);
         if !(1..=100).contains(&quality) {
             return Err(CompressionError::InvalidQuality(quality));
@@ -26,6 +27,7 @@ impl CompressionOptions {
             width,
             height,
             format,
+            exact_resize,
         })
     }
 }
@@ -42,16 +44,49 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
 }
 
 pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
-    if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
-        println!("🔄 Resizing width...");
-        *img = img.resize_exact(w, img.height(), image::imageops::FilterType::Lanczos3);
-        println!("✅ Resized to width: {}", w);
-    }
+    let (current_width, current_height) = img.dimensions();
     
-    if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
-        println!("🔄 Resizing height...");
-        *img = img.resize_exact(img.width(), h, image::imageops::FilterType::Lanczos3);
-        println!("✅ Resized to height: {}", h);
+    match (options.width, options.height) {
+        (Some(target_width), Some(target_height)) => {
+            // Both dimensions specified - resize to exact dimensions
+            if target_width > 0 && target_height > 0 && 
+               (target_width != current_width || target_height != current_height) {
+                println!("🔄 Resizing to exact dimensions: {}x{}", target_width, target_height);
+                *img = img.resize_exact(target_width, target_height, image::imageops::FilterType::Lanczos3);
+                println!("✅ Resized to: {}x{}", target_width, target_height);
+            }
+        }
+        (Some(target_width), None) => {
+            // Only width specified
+            if target_width > 0 && target_width != current_width {
+                if options.exact_resize {
+                    println!("🔄 Resizing width exactly (may distort aspect ratio)...");
+                    *img = img.resize_exact(target_width, current_height, image::imageops::FilterType::Lanczos3);
+                    println!("✅ Resized to width: {} (height: {})", target_width, current_height);
+                } else {
+                    println!("🔄 Resizing width while maintaining aspect ratio...");
+                    *img = img.resize(target_width, u32::MAX, image::imageops::FilterType::Lanczos3);
+                    println!("✅ Resized to width: {} (height: {})", target_width, img.height());
+                }
+            }
+        }
+        (None, Some(target_height)) => {
+            // Only height specified
+            if target_height > 0 && target_height != current_height {
+                if options.exact_resize {
+                    println!("🔄 Resizing height exactly (may distort aspect ratio)...");
+                    *img = img.resize_exact(current_width, target_height, image::imageops::FilterType::Lanczos3);
+                    println!("✅ Resized to height: {} (width: {})", target_height, current_width);
+                } else {
+                    println!("🔄 Resizing height while maintaining aspect ratio...");
+                    *img = img.resize(u32::MAX, target_height, image::imageops::FilterType::Lanczos3);
+                    println!("✅ Resized to height: {} (width: {})", target_height, img.width());
+                }
+            }
+        }
+        (None, None) => {
+            // No resizing needed
+        }
     }
 }
 
@@ -185,28 +220,30 @@ mod tests {
 
     #[test]
     fn test_compression_options_creation() {
-        let options = CompressionOptions::new(Some(85), Some(800), Some(600), Some("webp".to_string())).unwrap();
+        let options = CompressionOptions::new(Some(85), Some(800), Some(600), Some("webp".to_string()), false).unwrap();
         assert_eq!(options.quality, 85);
         assert_eq!(options.width, Some(800));
         assert_eq!(options.height, Some(600));
         assert_eq!(options.format, Some("webp".to_string()));
+        assert_eq!(options.exact_resize, false);
     }
 
     #[test]
     fn test_compression_options_default() {
-        let options = CompressionOptions::new(None, None, None, None).unwrap();
+        let options = CompressionOptions::new(None, None, None, None, false).unwrap();
         assert_eq!(options.quality, 80);
         assert_eq!(options.width, None);
         assert_eq!(options.height, None);
         assert_eq!(options.format, None);
+        assert_eq!(options.exact_resize, false);
     }
 
     #[test]
     fn test_compression_options_invalid_quality() {
-        let result = CompressionOptions::new(Some(0), None, None, None);
+        let result = CompressionOptions::new(Some(0), None, None, None, false);
         assert!(matches!(result, Err(CompressionError::InvalidQuality(0))));
         
-        let result = CompressionOptions::new(Some(101), None, None, None);
+        let result = CompressionOptions::new(Some(101), None, None, None, false);
         assert!(matches!(result, Err(CompressionError::InvalidQuality(101))));
     }
 
@@ -246,27 +283,29 @@ mod tests {
     #[test]
     fn test_resize_image_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(1000), None, None).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(1000), None, None, false).unwrap();
 
         resize_image(&mut img, &options);
         
-        assert_eq!(img.dimensions(), (1000, 1500));
+        // With aspect ratio preserved, 2000x1500 resized to width 1000 becomes 1000x750
+        assert_eq!(img.dimensions(), (1000, 750));
     }
 
     #[test]
     fn test_resize_image_height_only() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), None, Some(750), None).unwrap();
+        let options = CompressionOptions::new(Some(80), None, Some(750), None, false).unwrap();
 
         resize_image(&mut img, &options);
         
-        assert_eq!(img.dimensions(), (2000, 750));
+        // With aspect ratio preserved, 2000x1500 resized to height 750 becomes 1000x750
+        assert_eq!(img.dimensions(), (1000, 750));
     }
 
     #[test]
     fn test_resize_image_both_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(800), Some(600), None).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(800), Some(600), None, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -276,7 +315,7 @@ mod tests {
     #[test]
     fn test_resize_image_no_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), None, None, None).unwrap();
+        let options = CompressionOptions::new(Some(80), None, None, None, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -286,11 +325,33 @@ mod tests {
     #[test]
     fn test_resize_image_same_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(2000), Some(1500), None).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(2000), Some(1500), None, false).unwrap();
 
         resize_image(&mut img, &options);
         
         assert_eq!(img.dimensions(), (2000, 1500));
+    }
+
+    #[test]
+    fn test_resize_image_exact_width() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), Some(1000), None, None, true).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        // With exact resize, 2000x1500 resized to width 1000 becomes 1000x1500 (distorted)
+        assert_eq!(img.dimensions(), (1000, 1500));
+    }
+
+    #[test]
+    fn test_resize_image_exact_height() {
+        let mut img = DynamicImage::new_rgb8(2000, 1500);
+        let options = CompressionOptions::new(Some(80), None, Some(750), None, true).unwrap();
+
+        resize_image(&mut img, &options);
+        
+        // With exact resize, 2000x1500 resized to height 750 becomes 2000x750 (distorted)
+        assert_eq!(img.dimensions(), (2000, 750));
     }
 
     #[test]

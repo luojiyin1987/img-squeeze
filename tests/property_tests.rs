@@ -7,14 +7,14 @@ use std::path::Path;
 proptest! {
     #[test]
     fn compression_options_quality_in_range(quality in 1u8..=100u8) {
-        let options = CompressionOptions::new(Some(quality), None, None, None);
+        let options = CompressionOptions::new(Some(quality), None, None, None, false);
         assert!(options.is_ok());
     }
 
     #[test]
     fn compression_options_invalid_quality(quality in 0u8..200u8) {
         // Test invalid quality values (0 and > 100)
-        let result = CompressionOptions::new(Some(quality), None, None, None);
+        let result = CompressionOptions::new(Some(quality), None, None, None, false);
         if quality == 0 || quality > 100 {
             assert!(result.is_err());
         } else {
@@ -32,15 +32,17 @@ proptest! {
         prop_assume!(new_width != width); // Only test if resize is needed
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), Some(new_width), None, None).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(new_width), None, None, false).unwrap();
         
         resize_image(&mut img, &options);
         
-        let (new_w, new_h) = img.dimensions();
+        let (resized_w, resized_h) = img.dimensions();
         
-        // Check that width was set correctly and height remains unchanged
-        assert_eq!(new_w, new_width);
-        assert_eq!(new_h, height);
+        // With aspect ratio preserved, width should be set and height should be proportional
+        assert_eq!(resized_w, new_width);
+        // Height should be proportional to maintain aspect ratio
+        let expected_height = (height as f64 * new_width as f64 / width as f64).round() as u32;
+        assert_eq!(resized_h, expected_height);
     }
 
     #[test]
@@ -53,15 +55,17 @@ proptest! {
         prop_assume!(new_height != height); // Only test if resize is needed
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), None, Some(new_height), None).unwrap();
+        let options = CompressionOptions::new(Some(80), None, Some(new_height), None, false).unwrap();
         
         resize_image(&mut img, &options);
         
-        let (new_w, new_h) = img.dimensions();
+        let (resized_w, resized_h) = img.dimensions();
         
-        // Check that height was set correctly and width remains unchanged
-        assert_eq!(new_h, new_height);
-        assert_eq!(new_w, width);
+        // With aspect ratio preserved, height should be set and width should be proportional
+        assert_eq!(resized_h, new_height);
+        // Width should be proportional to maintain aspect ratio
+        let expected_width = (width as f64 * new_height as f64 / height as f64).round() as u32;
+        assert_eq!(resized_w, expected_width);
     }
 
     #[test]
@@ -108,7 +112,7 @@ proptest! {
         format in prop::option::weighted(0.3, prop::sample::select(&["jpg", "png", "webp"]))
     ) {
         let format_str = format.map(|s| s.to_string());
-        let result = CompressionOptions::new(quality, width, height, format_str.clone());
+        let result = CompressionOptions::new(quality, width, height, format_str.clone(), false);
         
         match result {
             Ok(options) => {
@@ -117,6 +121,7 @@ proptest! {
                 assert_eq!(options.width, width);
                 assert_eq!(options.height, height);
                 assert_eq!(options.format, format_str);
+                assert_eq!(options.exact_resize, false);
             }
             Err(_) => {
                 // Only error should be invalid quality
@@ -133,7 +138,7 @@ proptest! {
         prop_assume!(width > 0 && height > 0);
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), Some(width), Some(height), None).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(width), Some(height), None, false).unwrap();
         
         resize_image(&mut img, &options);
         
