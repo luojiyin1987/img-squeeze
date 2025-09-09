@@ -78,6 +78,9 @@ pub enum Commands {
         
         #[arg(short = 'e', long, help = "Number of epochs for storage")]
         epochs: Option<u64>,
+        
+        #[arg(short = 't', long, help = "Upload as temporary file (1 epoch storage)")]
+        temp: bool,
     },
     
     #[command(about = "Get information about an image")]

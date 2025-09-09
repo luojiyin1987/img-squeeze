@@ -29,8 +29,8 @@ fn main() -> Result<()> {
             let options = CompressionOptions::new(quality, width, height, format)?;
             batch_compress_images(input, output, options, recursive)?;
         }
-        Commands::Upload { input, aggregator_url, publisher_url, epochs } => {
-            upload_image_to_walrus(&input, aggregator_url, publisher_url, epochs)?;
+        Commands::Upload { input, aggregator_url, publisher_url, epochs, temp } => {
+            upload_image_to_walrus(&input, aggregator_url, publisher_url, epochs, temp)?;
         }
         Commands::Info { input } => {
             show_image_info(&input)?;
@@ -56,6 +56,7 @@ fn upload_image_to_walrus(
     aggregator_url: Option<String>,
     publisher_url: Option<String>,
     epochs: Option<u64>,
+    temp: bool,
 ) -> Result<()> {
     println!("📤 Uploading to Walrus: {:?}", input_path);
     
@@ -63,7 +64,14 @@ fn upload_image_to_walrus(
         return Err(error::CompressionError::FileNotFound(input_path.to_path_buf()));
     }
     
-    let options = WalrusOptions::new(aggregator_url, publisher_url, epochs);
+    // 处理临时文件选项
+    let final_epochs = if temp {
+        Some(1) // 临时文件只存储 1 个 epoch
+    } else {
+        epochs
+    };
+    
+    let options = WalrusOptions::new(aggregator_url, publisher_url, final_epochs);
     
     println!("🔗 Aggregator URL: {}", options.aggregator_url);
     println!("🔗 Publisher URL: {}", options.publisher_url);
@@ -77,6 +85,12 @@ fn upload_image_to_walrus(
     // 构建访问地址
     let access_url = build_walrus_access_url(&options.aggregator_url, &blob_id);
     println!("🌐 Access URL: {}", access_url);
+    
+    // 临时文件提示
+    if temp {
+        println!("⏰ Temporary file: Will expire after 1 epoch (~24 hours)");
+        println!("🔄 Use without -t flag for longer storage");
+    }
     
     // 显示文件信息
     if let Ok(metadata) = std::fs::metadata(input_path) {

@@ -53,7 +53,8 @@ pub async fn upload_to_walrus_async(
     let client = WalrusClient::new(&options.aggregator_url, &options.publisher_url)
         .map_err(|e| CompressionError::WalrusUpload(format!("Failed to create Walrus client: {}", e)))?;
 
-    let store_result = client.store_blob(data, options.epochs, None, None, None)
+    // 设置 deletable 标志，便于未来可能的删除功能
+  let store_result = client.store_blob(data, options.epochs, Some(true), None, None)
         .await
         .map_err(|e| CompressionError::WalrusUpload(format!("Failed to store blob: {}", e)))?;
 
