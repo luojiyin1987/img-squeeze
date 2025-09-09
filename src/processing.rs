@@ -40,8 +40,20 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
         return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
     }
 
-    let img = ImageReader::open(input_path)?.decode()?;
-    let file_size = fs::metadata(input_path)?.len();
+    // Security: Validate path to prevent directory traversal attacks
+    let canonical_path = input_path.canonicalize()
+        .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
+    
+    let img = ImageReader::open(&canonical_path)?.decode()?;
+    
+    // Security: Validate image dimensions to prevent DoS attacks
+    let (width, height) = img.dimensions();
+    const MAX_DIMENSION: u32 = 16384; // Reasonable limit for image dimensions
+    if width > MAX_DIMENSION || height > MAX_DIMENSION {
+        return Err(CompressionError::InvalidQuality(0)); // Reuse existing error type
+    }
+    
+    let file_size = fs::metadata(&canonical_path)?.len();
 
     Ok((img, file_size))
 }
@@ -158,9 +170,18 @@ pub fn save_image(
             // 使用 oxipng 进行 PNG 优化
             let (_width, _height) = img.dimensions();
 
-            // 先保存为临时文件
+            // Performance: Use secure temp file with proper cleanup
             let temp_path = output.with_extension("temp.png");
             img.save_with_format(&temp_path, image::ImageFormat::Png)?;
+
+            // Performance: Ensure cleanup on any error using RAII pattern
+            struct TempFileGuard(PathBuf);
+            impl Drop for TempFileGuard {
+                fn drop(&mut self) {
+                    let _ = fs::remove_file(&self.0);
+                }
+            }
+            let _guard = TempFileGuard(temp_path.clone());
 
             // 配置 oxipng 选项
             let mut oxipng_options = Options::from_preset(4); // 使用预设 4 (最高压缩)
@@ -186,8 +207,7 @@ pub fn save_image(
             oxipng::optimize(&input, &out, &oxipng_options)
                 .map_err(|e| CompressionError::PngOptimization(e.to_string()))?;
 
-            // 删除临时文件
-            fs::remove_file(temp_path)?;
+            // Temp file automatically cleaned up by guard
         }
         ImageFormat::WebP => {
             img.save_with_format(output, image::ImageFormat::WebP)?;

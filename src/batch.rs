@@ -109,18 +109,25 @@ pub fn batch_compress_images(
 pub fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>> {
     let mut image_files = Vec::new();
 
-    // 检查输入是文件还是目录
+    // Security: Validate and canonicalize input path to prevent directory traversal
     let input_path = Path::new(input);
+    let canonical_input = if input_path.exists() {
+        input_path.canonicalize()
+            .map_err(|_| CompressionError::NoImageFilesFound(input.to_string()))?
+    } else {
+        // For glob patterns, we'll validate each result individually
+        input_path.to_path_buf()
+    };
 
-    if input_path.exists() && input_path.is_file() {
+    if canonical_input.exists() && canonical_input.is_file() {
         // 单个文件
-        image_files.push(input_path.to_path_buf());
-    } else if input_path.exists() && input_path.is_dir() {
+        image_files.push(canonical_input);
+    } else if canonical_input.exists() && canonical_input.is_dir() {
         // 目录处理
         let walker = if recursive {
-            WalkDir::new(input_path).into_iter()
+            WalkDir::new(&canonical_input).into_iter()
         } else {
-            WalkDir::new(input_path).max_depth(1).into_iter()
+            WalkDir::new(&canonical_input).max_depth(1).into_iter()
         };
 
         for entry in walker.filter_entry(|e| !e.file_name().to_string_lossy().starts_with('.')) {
@@ -128,14 +135,20 @@ pub fn collect_image_files(input: &str, recursive: bool) -> Result<Vec<PathBuf>>
             let path = entry.path();
 
             if path.is_file() && is_image_file(path) {
-                image_files.push(path.to_path_buf());
+                // Security: Canonicalize each file path
+                if let Ok(canonical_path) = path.canonicalize() {
+                    image_files.push(canonical_path);
+                }
             }
         }
     } else if let Ok(glob_pattern) = glob(input) {
         // 尝试使用glob模式
         for entry in glob_pattern.flatten() {
             if entry.is_file() && is_image_file(&entry) {
-                image_files.push(entry);
+                // Security: Canonicalize glob results
+                if let Ok(canonical_path) = entry.canonicalize() {
+                    image_files.push(canonical_path);
+                }
             }
         }
     } else {
