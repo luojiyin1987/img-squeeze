@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use walkdir::WalkDir;
 
 /// Estimates memory usage for an image file without loading it into memory.
@@ -82,13 +83,19 @@ fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)>
         ));
     }
 
-    // Check if we have enough available memory (simplified check)
-    // In a real implementation, this could query actual system memory
+    // Check against actual available memory (host/container)
+    // Uses sysinfo's available_memory (KiB). Convert to MiB.
+    let mut sys = System::new_with_specifics(
+        RefreshKind::new().with_memory(MemoryRefreshKind::new())
+    );
+    sys.refresh_memory();
+    let available_mem_mb = sys.available_memory() / 1024; // KiB -> MiB
     let required_with_buffer = total_memory_mb_u64 + MIN_AVAILABLE_MEMORY_MB;
-    if required_with_buffer > MAX_BATCH_MEMORY_MB + MIN_AVAILABLE_MEMORY_MB {
+    if required_with_buffer > available_mem_mb {
+        // Report how much is actually available (not subtracting buffer for transparency)
         return Err(CompressionError::InsufficientMemory(
             total_memory_mb_u64,
-            MAX_BATCH_MEMORY_MB,
+            available_mem_mb,
         ));
     }
 
@@ -142,6 +149,12 @@ pub fn batch_compress_images(
         max_parallelism
     );
 
+    // Build a scoped Rayon pool to enforce the chosen parallelism
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(max_parallelism)
+        .build()
+        .expect("Failed to build Rayon thread pool");
+
     // 创建输出目录
     fs::create_dir_all(&output)
         .map_err(|_| CompressionError::DirectoryCreationFailed(output.clone()))?;
@@ -155,59 +168,61 @@ pub fn batch_compress_images(
     let total_size_after = Arc::new(AtomicUsize::new(0));
 
     // Security: Use limited parallelism based on memory requirements
-    let results: Vec<Result<()>> = if large_image_count > MAX_CONCURRENT_LARGE_IMAGES {
-        // For batches with many large images, use chunked processing to limit memory usage
-        let chunk_size = MAX_CONCURRENT_LARGE_IMAGES.max(1);
-        image_files
-            .chunks(chunk_size)
-            .flat_map(|chunk| {
-                chunk
-                    .into_par_iter()
-                    .map(|input_path| {
-                        let processed_count = processed_count.clone();
-                        let total_size_before = total_size_before.clone();
-                        let total_size_after = total_size_after.clone();
+    let results: Vec<Result<()>> = pool.install(|| {
+        if large_image_count > MAX_CONCURRENT_LARGE_IMAGES {
+            // For batches with many large images, use chunked processing to limit memory usage
+            let chunk_size = MAX_CONCURRENT_LARGE_IMAGES.max(1);
+            image_files
+                .chunks(chunk_size)
+                .flat_map(|chunk| {
+                    chunk
+                        .into_par_iter()
+                        .map(|input_path| {
+                            let processed_count = processed_count.clone();
+                            let total_size_before = total_size_before.clone();
+                            let total_size_after = total_size_after.clone();
 
-                        match process_single_image(input_path, &output, &options) {
-                            Ok((before_size, after_size)) => {
-                                total_size_before.fetch_add(before_size, Ordering::Relaxed);
-                                total_size_after.fetch_add(after_size, Ordering::Relaxed);
-                                processed_count.fetch_add(1, Ordering::Relaxed);
-                                Ok(())
+                            match process_single_image(input_path, &output, &options) {
+                                Ok((before_size, after_size)) => {
+                                    total_size_before.fetch_add(before_size, Ordering::Relaxed);
+                                    total_size_after.fetch_add(after_size, Ordering::Relaxed);
+                                    processed_count.fetch_add(1, Ordering::Relaxed);
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                                    Err(e)
+                                }
                             }
-                            Err(e) => {
-                                eprintln!("❌ Failed to process {:?}: {}", input_path, e);
-                                Err(e)
-                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        } else {
+            // Standard parallel processing for smaller batches
+            image_files
+                .into_par_iter()
+                .map(|input_path| {
+                    let processed_count = processed_count.clone();
+                    let total_size_before = total_size_before.clone();
+                    let total_size_after = total_size_after.clone();
+
+                    match process_single_image(&input_path, &output, &options) {
+                        Ok((before_size, after_size)) => {
+                            total_size_before.fetch_add(before_size, Ordering::Relaxed);
+                            total_size_after.fetch_add(after_size, Ordering::Relaxed);
+                            processed_count.fetch_add(1, Ordering::Relaxed);
+                            Ok(())
                         }
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
-    } else {
-        // Standard parallel processing for smaller batches
-        image_files
-            .into_par_iter()
-            .map(|input_path| {
-                let processed_count = processed_count.clone();
-                let total_size_before = total_size_before.clone();
-                let total_size_after = total_size_after.clone();
-
-                match process_single_image(&input_path, &output, &options) {
-                    Ok((before_size, after_size)) => {
-                        total_size_before.fetch_add(before_size, Ordering::Relaxed);
-                        total_size_after.fetch_add(after_size, Ordering::Relaxed);
-                        processed_count.fetch_add(1, Ordering::Relaxed);
-                        Ok(())
+                        Err(e) => {
+                            eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                            Err(e)
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("❌ Failed to process {:?}: {}", input_path, e);
-                        Err(e)
-                    }
-                }
-            })
-            .collect()
-    };
+                })
+                .collect()
+        }
+    });
 
     main_progress.finish_with_message("✅ Batch compression complete");
 
