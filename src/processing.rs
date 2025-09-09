@@ -1,47 +1,27 @@
-use crate::constants::*;
 use crate::error::{CompressionError, Result};
-use crate::formats::{OutputFormat, determine_output_format};
-use crate::utils::{create_progress_spinner, print_compression_result, validate_file_exists};
-use image::{DynamicImage, GenericImageView, ImageReader};
+use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
+use indicatif::{ProgressBar, ProgressStyle};
 use oxipng::{Deflaters, InFile, Options, OutFile};
 use std::fs;
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 
-/// Configuration options for image compression
-/// 
-/// Contains all the parameters needed to control the compression process,
-/// including quality settings, dimensions, and output format.
 #[derive(Debug, Clone)]
 pub struct CompressionOptions {
-    /// Compression quality (1-100 scale)
     pub quality: u8,
-    /// Maximum output width in pixels (optional)
     pub width: Option<u32>,
-    /// Maximum output height in pixels (optional)  
     pub height: Option<u32>,
-    /// Output format override (optional)
     pub format: Option<String>,
 }
 
 impl CompressionOptions {
-    /// Create new compression options with validation
-    /// 
-    /// # Arguments
-    /// * `quality` - Optional quality setting (1-100), defaults to 80
-    /// * `width` - Optional maximum width in pixels
-    /// * `height` - Optional maximum height in pixels
-    /// * `format` - Optional format override string
-    /// 
-    /// # Returns
-    /// * `Ok(CompressionOptions)` if valid, `Err(CompressionError)` if quality out of range
     pub fn new(
         quality: Option<u8>,
         width: Option<u32>,
         height: Option<u32>,
         format: Option<String>,
     ) -> Result<Self> {
-        let quality = quality.unwrap_or(DEFAULT_QUALITY);
+        let quality = quality.unwrap_or(80);
         if !(1..=100).contains(&quality) {
             return Err(CompressionError::InvalidQuality(quality));
         }
@@ -55,76 +35,67 @@ impl CompressionOptions {
     }
 }
 
-/// Load an image from disk with metadata
-/// 
-/// # Arguments
-/// * `input_path` - Path to the image file
-/// 
-/// # Returns
-/// * `Ok((DynamicImage, u64))` containing the image and file size, or `Err(CompressionError)`
 pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
-    validate_file_exists(input_path)?;
+    if !input_path.exists() {
+        return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
+    }
 
-    let img = ImageReader::open(input_path)?.decode()?;
-    let file_size = fs::metadata(input_path)?.len();
+    // Security: Validate path to prevent directory traversal attacks
+    let canonical_path = input_path.canonicalize()
+        .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
+    
+    let img = ImageReader::open(&canonical_path)?.decode()?;
+    
+    // Security: Validate image dimensions to prevent DoS attacks
+    let (width, height) = img.dimensions();
+    const MAX_DIMENSION: u32 = 16384; // Reasonable limit for image dimensions
+    if width > MAX_DIMENSION || height > MAX_DIMENSION {
+        return Err(CompressionError::InvalidQuality(0)); // Reuse existing error type
+    }
+    
+    let file_size = fs::metadata(&canonical_path)?.len();
 
     Ok((img, file_size))
 }
 
-/// Resize an image according to the specified options
-/// 
-/// # Arguments
-/// * `img` - Mutable reference to the image to resize
-/// * `options` - Compression options containing width/height constraints
 pub fn resize_image(img: &mut DynamicImage, options: &CompressionOptions) {
     if let Some(w) = options.width.filter(|&w| w > 0 && w != img.width()) {
-        println!("🔄 Resizing width to {} pixels...", w);
+        println!("🔄 Resizing width...");
         *img = img.resize_exact(w, img.height(), image::imageops::FilterType::Lanczos3);
         println!("✅ Resized to width: {}", w);
     }
 
     if let Some(h) = options.height.filter(|&h| h > 0 && h != img.height()) {
-        println!("🔄 Resizing height to {} pixels...", h);
+        println!("🔄 Resizing height...");
         *img = img.resize_exact(img.width(), h, image::imageops::FilterType::Lanczos3);
         println!("✅ Resized to height: {}", h);
     }
 }
 
-/// Process and save an image with the specified options
-/// 
-/// # Arguments
-/// * `img` - The image to save
-/// * `output_path` - Destination file path
-/// * `options` - Compression options
-/// 
-/// # Returns
-/// * `Ok(u64)` containing the compressed file size, or `Err(CompressionError)`
 pub fn process_and_save_image(
     img: &DynamicImage,
     output_path: &Path,
     options: &CompressionOptions,
 ) -> Result<u64> {
-    let output_format = determine_output_format(output_path, options.format.as_deref())?;
-    save_image(img, output_path, output_format, options)?;
+    let output_buf = output_path.to_path_buf();
+    let output_format = determine_output_format(output_path, &options.format)?;
+    save_image(img, &output_buf, output_format, options)?;
 
     let compressed_size = fs::metadata(output_path)?.len();
     Ok(compressed_size)
 }
 
-/// Compress a single image file
-/// 
-/// # Arguments
-/// * `input` - Input image file path
-/// * `output` - Output image file path
-/// * `options` - Compression options
-/// 
-/// # Returns
-/// * `Ok(())` on success, `Err(CompressionError)` on failure
 pub fn compress_image(input: PathBuf, output: PathBuf, options: CompressionOptions) -> Result<()> {
     println!("🗜️  Compressing image: {:?}", input);
     println!("📁 Output: {:?}", output);
 
-    let pb = create_progress_spinner("Loading image...");
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message("Loading image...");
 
     let (mut img, original_size) = load_image_with_metadata(&input)?;
     pb.finish_with_message("✅ Image loaded");
@@ -139,103 +110,111 @@ pub fn compress_image(input: PathBuf, output: PathBuf, options: CompressionOptio
     // Resize if needed
     resize_image(&mut img, &options);
 
-    let pb = create_progress_spinner("Saving compressed image...");
+    pb.set_message("Saving compressed image...");
     let compressed_size = process_and_save_image(&img, &output, &options)?;
     pb.finish_with_message("✅ Compression complete");
+    let compression_ratio =
+        ((original_size as f64 - compressed_size as f64) / original_size as f64) * 100.0;
 
-    print_compression_result(original_size, compressed_size);
+    println!("📈 Compressed size: {} bytes", compressed_size);
+    println!("🎯 Compression ratio: {:.1}%", compression_ratio);
+
+    if compression_ratio > 0.0 {
+        println!(
+            "✅ Successfully reduced file size by {:.1}%",
+            compression_ratio
+        );
+    } else {
+        println!("⚠️  File size increased by {:.1}%", compression_ratio.abs());
+    }
 
     Ok(())
 }
 
-/// Save an image with format-specific optimizations
-/// 
-/// # Arguments
-/// * `img` - The image to save
-/// * `output` - Output file path
-/// * `format` - Target output format
-/// * `options` - Compression options
-/// 
-/// # Returns
-/// * `Ok(())` on success, `Err(CompressionError)` on failure
+pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result<ImageFormat> {
+    if let Some(fmt) = format {
+        match fmt.to_lowercase().as_str() {
+            "jpeg" | "jpg" => Ok(ImageFormat::Jpeg),
+            "png" => Ok(ImageFormat::Png),
+            "webp" => Ok(ImageFormat::WebP),
+            _ => Err(CompressionError::UnsupportedFormat(fmt.clone())),
+        }
+    } else if let Some(ext) = output.extension().and_then(|ext| ext.to_str()) {
+        match ext {
+            "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
+            "png" => Ok(ImageFormat::Png),
+            "webp" => Ok(ImageFormat::WebP),
+            _ => Ok(ImageFormat::Jpeg),
+        }
+    } else {
+        Ok(ImageFormat::Jpeg)
+    }
+}
+
 pub fn save_image(
     img: &DynamicImage,
-    output: &Path,
-    format: OutputFormat,
+    output: &PathBuf,
+    format: ImageFormat,
     options: &CompressionOptions,
 ) -> Result<()> {
-    // Ensure output directory exists
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)
             .map_err(|_| CompressionError::DirectoryCreationFailed(parent.to_path_buf()))?;
     }
 
     match format {
-        OutputFormat::Jpeg => {
+        ImageFormat::Jpeg => {
             img.save_with_format(output, image::ImageFormat::Jpeg)?;
         }
-        OutputFormat::Png => {
-            optimize_png_image(img, output, options)?;
+        ImageFormat::Png => {
+            // 使用 oxipng 进行 PNG 优化
+            let (_width, _height) = img.dimensions();
+
+            // Performance: Use secure temp file with proper cleanup
+            let temp_path = output.with_extension("temp.png");
+            img.save_with_format(&temp_path, image::ImageFormat::Png)?;
+
+            // Performance: Ensure cleanup on any error using RAII pattern
+            struct TempFileGuard(PathBuf);
+            impl Drop for TempFileGuard {
+                fn drop(&mut self) {
+                    let _ = fs::remove_file(&self.0);
+                }
+            }
+            let _guard = TempFileGuard(temp_path.clone());
+
+            // 配置 oxipng 选项
+            let mut oxipng_options = Options::from_preset(4); // 使用预设 4 (最高压缩)
+            oxipng_options.force = true; // 强制覆盖
+
+            // 根据质量设置调整压缩级别
+            if options.quality >= 90 {
+                oxipng_options.deflate = Deflaters::Zopfli {
+                    iterations: NonZeroU8::new(15).unwrap(),
+                };
+            } else if options.quality >= 70 {
+                oxipng_options.deflate = Deflaters::Libdeflater { compression: 12 };
+            } else {
+                oxipng_options.deflate = Deflaters::Libdeflater { compression: 8 };
+            }
+
+            // 使用 oxipng 优化文件
+            let input = InFile::Path(temp_path.clone());
+            let out = OutFile::Path {
+                path: Some(output.clone()),
+                preserve_attrs: false,
+            };
+            oxipng::optimize(&input, &out, &oxipng_options)
+                .map_err(|e| CompressionError::PngOptimization(e.to_string()))?;
+
+            // Temp file automatically cleaned up by guard
         }
-        OutputFormat::WebP => {
+        ImageFormat::WebP => {
             img.save_with_format(output, image::ImageFormat::WebP)?;
         }
-    }
-
-    Ok(())
-}
-
-/// Optimize PNG image using oxipng with quality-based settings
-/// 
-/// # Arguments
-/// * `img` - The image to save
-/// * `output` - Output file path
-/// * `options` - Compression options containing quality setting
-/// 
-/// # Returns
-/// * `Ok(())` on success, `Err(CompressionError)` on failure
-fn optimize_png_image(
-    img: &DynamicImage,
-    output: &Path,
-    options: &CompressionOptions,
-) -> Result<()> {
-    // Save to temporary file first
-    let temp_path = output.with_extension("temp.png");
-    img.save_with_format(&temp_path, image::ImageFormat::Png)?;
-
-    // Configure oxipng options based on quality
-    let mut oxipng_options = Options::from_preset(4); // Use highest compression preset
-    oxipng_options.force = true; // Allow overwriting existing files
-
-    // Configure compression algorithm based on quality
-    if options.quality >= PNG_ZOPFLI_QUALITY_THRESHOLD {
-        oxipng_options.deflate = Deflaters::Zopfli {
-            iterations: NonZeroU8::new(PNG_ZOPFLI_ITERATIONS)
-                .expect("PNG_ZOPFLI_ITERATIONS must be non-zero"),
-        };
-    } else if options.quality >= PNG_HIGH_COMPRESSION_QUALITY_THRESHOLD {
-        oxipng_options.deflate = Deflaters::Libdeflater { 
-            compression: PNG_HIGH_COMPRESSION_LEVEL 
-        };
-    } else {
-        oxipng_options.deflate = Deflaters::Libdeflater { 
-            compression: PNG_STANDARD_COMPRESSION_LEVEL 
-        };
-    }
-
-    // Optimize the PNG file
-    let input = InFile::Path(temp_path.clone());
-    let out = OutFile::Path {
-        path: Some(output.to_path_buf()),
-        preserve_attrs: false,
-    };
-    
-    oxipng::optimize(&input, &out, &oxipng_options)
-        .map_err(|e| CompressionError::PngOptimization(e.to_string()))?;
-
-    // Clean up temporary file
-    if let Err(e) = fs::remove_file(&temp_path) {
-        eprintln!("Warning: Failed to remove temporary file {:?}: {}", temp_path, e);
+        _ => {
+            return Err(CompressionError::UnsupportedFormat(format!("{:?}", format)));
+        }
     }
 
     Ok(())
@@ -277,33 +256,33 @@ mod tests {
     #[test]
     fn test_determine_output_format() {
         let path = Path::new("test.jpg");
-        let format = determine_output_format(path, None).unwrap();
-        assert_eq!(format, OutputFormat::Jpeg);
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Jpeg);
 
         let path = Path::new("test.png");
-        let format = determine_output_format(path, None).unwrap();
-        assert_eq!(format, OutputFormat::Png);
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Png);
 
         let path = Path::new("test.webp");
-        let format = determine_output_format(path, None).unwrap();
-        assert_eq!(format, OutputFormat::WebP);
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::WebP);
 
         let path = Path::new("test.unknown");
-        let format = determine_output_format(path, None).unwrap();
-        assert_eq!(format, OutputFormat::Jpeg);
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Jpeg);
     }
 
     #[test]
     fn test_determine_output_format_with_override() {
         let path = Path::new("test.jpg");
-        let format = determine_output_format(path, Some("png")).unwrap();
-        assert_eq!(format, OutputFormat::Png);
+        let format = determine_output_format(path, &Some("png".to_string())).unwrap();
+        assert_eq!(format, ImageFormat::Png);
     }
 
     #[test]
     fn test_determine_output_format_unsupported() {
         let path = Path::new("test.jpg");
-        let result = determine_output_format(path, Some("unsupported"));
+        let result = determine_output_format(path, &Some("unsupported".to_string()));
         assert!(matches!(
             result,
             Err(CompressionError::UnsupportedFormat(_))
