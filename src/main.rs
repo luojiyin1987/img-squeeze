@@ -83,11 +83,7 @@ fn upload_image_to_walrus(
 ) -> Result<()> {
     println!("📤 Uploading to Walrus: {:?}", input_path);
 
-    if !input_path.exists() {
-        return Err(error::CompressionError::FileNotFound(
-            input_path.to_path_buf(),
-        ));
-    }
+    validate_file_exists(input_path)?;
 
     // 处理临时文件选项
     let final_epochs = if temp {
@@ -140,11 +136,7 @@ fn build_walrus_access_url(aggregator_url: &str, blob_id: &str) -> String {
 fn show_image_info(input_path: &Path) -> Result<()> {
     println!("📋 Getting info for: {:?}", input_path);
 
-    if !input_path.exists() {
-        return Err(error::CompressionError::FileNotFound(
-            input_path.to_path_buf(),
-        ));
-    }
+    validate_file_exists(input_path)?;
 
     // 基本图片信息
     get_image_info(input_path)?;

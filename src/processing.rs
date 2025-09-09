@@ -35,10 +35,36 @@ impl CompressionOptions {
     }
 }
 
-pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
-    if !input_path.exists() {
-        return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
+/// Common utility function to validate file existence
+pub fn validate_file_exists(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Err(CompressionError::FileNotFound(path.to_path_buf()));
     }
+    Ok(())
+}
+
+/// Core image processing pipeline that handles the common workflow:
+/// load -> resize -> process -> save
+/// Returns (original_size, compressed_size)
+pub fn process_image_pipeline(
+    input_path: &Path,
+    output_path: &Path,
+    options: &CompressionOptions,
+) -> Result<(u64, u64)> {
+    // Load and validate image
+    let (mut img, original_size) = load_image_with_metadata(input_path)?;
+
+    // Resize if needed
+    resize_image(&mut img, options);
+
+    // Process and save
+    let compressed_size = process_and_save_image(&img, output_path, options)?;
+
+    Ok((original_size, compressed_size))
+}
+
+pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
+    validate_file_exists(input_path)?;
 
     // Security: Validate path to prevent directory traversal attacks
     let canonical_path = input_path.canonicalize()

@@ -1,7 +1,5 @@
 use crate::error::{CompressionError, Result};
-use crate::processing::{
-    load_image_with_metadata, process_and_save_image, resize_image, CompressionOptions,
-};
+use crate::processing::{CompressionOptions, process_image_pipeline};
 use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -178,12 +176,8 @@ fn process_single_image(
     // 生成输出路径
     let output_path = generate_output_path(input_path, output_dir, &options.format)?;
 
-    // 处理图片
-    let (mut img, original_size) = load_image_with_metadata(input_path)?;
-
-    resize_image(&mut img, options);
-
-    let compressed_size = process_and_save_image(&img, &output_path, options)?;
+    // 使用统一的图片处理管道
+    let (original_size, compressed_size) = process_image_pipeline(input_path, &output_path, options)?;
 
     Ok((original_size as usize, compressed_size as usize))
 }

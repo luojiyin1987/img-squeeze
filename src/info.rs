@@ -1,12 +1,11 @@
-use crate::error::{CompressionError, Result};
+use crate::error::Result;
+use crate::validate_file_exists;
 use image::{DynamicImage, GenericImageView, ImageReader};
 use std::fs;
 use std::path::Path;
 
 pub fn get_image_info(input_path: &Path) -> Result<()> {
-    if !input_path.exists() {
-        return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
-    }
+    validate_file_exists(input_path)?;
 
     println!("📊 Analyzing image: {:?}", input_path);
 
@@ -85,9 +84,7 @@ pub fn get_image_info(input_path: &Path) -> Result<()> {
 }
 
 pub fn print_detailed_info(input_path: &Path) -> Result<()> {
-    if !input_path.exists() {
-        return Err(CompressionError::FileNotFound(input_path.to_path_buf()));
-    }
+    validate_file_exists(input_path)?;
 
     let img = ImageReader::open(input_path)?.decode()?;
     let metadata = fs::metadata(input_path)?;
