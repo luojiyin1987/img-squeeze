@@ -256,6 +256,36 @@ cargo test
 # 检查代码
 cargo check
 cargo clippy
+
+# 格式化代码
+cargo fmt
+```
+
+### Pre-commit 钩子
+
+本项目配置了 pre-commit 钩子来确保代码质量。推荐在开发时使用：
+
+```bash
+# 安装 pre-commit
+pip install pre-commit
+
+# 安装钩子
+pre-commit install
+
+# 手动运行所有钩子
+pre-commit run --all-files
+
+# 可选：安装 cargo 审计工具
+cargo install cargo-audit cargo-machete
+```
+
+Pre-commit 将在每次提交前自动执行：
+- ✅ 代码格式化检查 (rustfmt)
+- ✅ 代码质量检查 (clippy)
+- ✅ 编译检查 (cargo check)  
+- ✅ 单元测试 (cargo test)
+- ✅ 安全审计 (cargo audit)
+- ✅ 通用文件检查 (trailing whitespace, YAML/TOML 语法等)
 ```
 
 ### 项目结构

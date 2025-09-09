@@ -1,7 +1,7 @@
 use crate::error::{CompressionError, Result};
-use std::path::Path;
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 use walrus_rs::WalrusClient;
 
 #[derive(Debug, Clone)]
@@ -28,50 +28,49 @@ impl WalrusOptions {
         epochs: Option<u64>,
     ) -> Self {
         Self {
-            aggregator_url: aggregator_url.unwrap_or_else(|| "https://aggregator.walrus-testnet.walrus.space".to_string()),
-            publisher_url: publisher_url.unwrap_or_else(|| "https://publisher.walrus-testnet.walrus.space".to_string()),
+            aggregator_url: aggregator_url
+                .unwrap_or_else(|| "https://aggregator.walrus-testnet.walrus.space".to_string()),
+            publisher_url: publisher_url
+                .unwrap_or_else(|| "https://publisher.walrus-testnet.walrus.space".to_string()),
             epochs,
         }
     }
 }
 
-pub async fn upload_to_walrus_async(
-    file_path: &Path,
-    options: &WalrusOptions,
-) -> Result<String> {
+pub async fn upload_to_walrus_async(file_path: &Path, options: &WalrusOptions) -> Result<String> {
     if !file_path.exists() {
         return Err(CompressionError::FileNotFound(file_path.to_path_buf()));
     }
 
-    let mut file = File::open(file_path)
-        .map_err(CompressionError::Io)?;
-    
-    let mut data = Vec::new();
-    file.read_to_end(&mut data)
-        .map_err(CompressionError::Io)?;
+    let mut file = File::open(file_path).map_err(CompressionError::Io)?;
 
-    let client = WalrusClient::new(&options.aggregator_url, &options.publisher_url)
-        .map_err(|e| CompressionError::WalrusUpload(format!("Failed to create Walrus client: {}", e)))?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).map_err(CompressionError::Io)?;
+
+    let client =
+        WalrusClient::new(&options.aggregator_url, &options.publisher_url).map_err(|e| {
+            CompressionError::WalrusUpload(format!("Failed to create Walrus client: {}", e))
+        })?;
 
     // 设置 deletable 标志，便于未来可能的删除功能
-  let store_result = client.store_blob(data, options.epochs, Some(true), None, None)
+    let store_result = client
+        .store_blob(data, options.epochs, Some(true), None, None)
         .await
         .map_err(|e| CompressionError::WalrusUpload(format!("Failed to store blob: {}", e)))?;
 
     if let Some(newly_created) = store_result.newly_created {
         Ok(newly_created.blob_object.blob_id)
     } else {
-        Err(CompressionError::WalrusUpload("Failed to create new blob".to_string()))
+        Err(CompressionError::WalrusUpload(
+            "Failed to create new blob".to_string(),
+        ))
     }
 }
 
-pub fn upload_to_walrus_sync(
-    file_path: &Path,
-    options: &WalrusOptions,
-) -> Result<String> {
+pub fn upload_to_walrus_sync(file_path: &Path, options: &WalrusOptions) -> Result<String> {
     let runtime = tokio::runtime::Runtime::new()
         .map_err(|e| CompressionError::WalrusUpload(format!("Failed to create runtime: {}", e)))?;
-    
+
     runtime.block_on(upload_to_walrus_async(file_path, options))
 }
 
@@ -82,8 +81,14 @@ mod tests {
     #[test]
     fn test_walrus_options_default() {
         let options = WalrusOptions::default();
-        assert_eq!(options.aggregator_url, "https://aggregator.walrus-testnet.walrus.space");
-        assert_eq!(options.publisher_url, "https://publisher.walrus-testnet.walrus.space");
+        assert_eq!(
+            options.aggregator_url,
+            "https://aggregator.walrus-testnet.walrus.space"
+        );
+        assert_eq!(
+            options.publisher_url,
+            "https://publisher.walrus-testnet.walrus.space"
+        );
         assert_eq!(options.epochs, Some(10));
     }
 
@@ -94,7 +99,7 @@ mod tests {
             Some("https://custom.publisher.com".to_string()),
             Some(20),
         );
-        
+
         assert_eq!(options.aggregator_url, "https://custom.aggregator.com");
         assert_eq!(options.publisher_url, "https://custom.publisher.com");
         assert_eq!(options.epochs, Some(20));

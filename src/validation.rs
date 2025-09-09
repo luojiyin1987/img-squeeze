@@ -1,6 +1,6 @@
 use crate::error::{CompressionError, Result};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Maximum file size in bytes (100MB)
 const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024;
@@ -11,41 +11,46 @@ pub fn validate_input_path(path: &Path) -> Result<()> {
     if !path.exists() {
         return Err(CompressionError::FileNotFound(path.to_path_buf()));
     }
-    
+
     // Check if it's a file (not a directory)
     if !path.is_file() {
         return Err(CompressionError::UnsupportedFormat(
-            "Input path is not a file".to_string()
+            "Input path is not a file".to_string(),
         ));
     }
-    
+
     // Check file size
-    let metadata = fs::metadata(path)
-        .map_err(|_| CompressionError::FileNotFound(path.to_path_buf()))?;
-    
+    let metadata =
+        fs::metadata(path).map_err(|_| CompressionError::FileNotFound(path.to_path_buf()))?;
+
     if metadata.len() > MAX_FILE_SIZE {
-        return Err(CompressionError::UnsupportedFormat(
-            format!("File size ({} bytes) exceeds maximum allowed size ({} bytes)", 
-                    metadata.len(), MAX_FILE_SIZE)
-        ));
+        return Err(CompressionError::UnsupportedFormat(format!(
+            "File size ({} bytes) exceeds maximum allowed size ({} bytes)",
+            metadata.len(),
+            MAX_FILE_SIZE
+        )));
     }
-    
+
     // Basic path traversal protection
-    let canonical_path = path.canonicalize()
+    let canonical_path = path
+        .canonicalize()
         .map_err(|_| CompressionError::FileNotFound(path.to_path_buf()))?;
-    
+
     // Check for suspicious path components
     for component in canonical_path.components() {
         if let std::path::Component::Normal(name) = component {
             let name_str = name.to_string_lossy();
-            if name_str.starts_with('.') && name_str.len() > 1 && name_str.chars().nth(1) == Some('.') {
+            if name_str.starts_with('.')
+                && name_str.len() > 1
+                && name_str.chars().nth(1) == Some('.')
+            {
                 return Err(CompressionError::UnsupportedFormat(
-                    "Suspicious path component detected".to_string()
+                    "Suspicious path component detected".to_string(),
                 ));
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -55,17 +60,18 @@ pub fn validate_output_path(path: &Path) -> Result<PathBuf> {
         // Create parent directories if they don't exist
         fs::create_dir_all(parent)
             .map_err(|_| CompressionError::DirectoryCreationFailed(parent.to_path_buf()))?;
-        
+
         // Canonicalize the parent directory
-        let canonical_parent = parent.canonicalize()
+        let canonical_parent = parent
+            .canonicalize()
             .map_err(|_| CompressionError::DirectoryCreationFailed(parent.to_path_buf()))?;
-        
+
         // Combine with the filename
         if let Some(filename) = path.file_name() {
             canonical_parent.join(filename)
         } else {
             return Err(CompressionError::UnsupportedFormat(
-                "Invalid output filename".to_string()
+                "Invalid output filename".to_string(),
             ));
         }
     } else {
@@ -74,19 +80,22 @@ pub fn validate_output_path(path: &Path) -> Result<PathBuf> {
             .map_err(|_| CompressionError::DirectoryCreationFailed(PathBuf::from(".")))?
             .join(path)
     };
-    
+
     // Basic path traversal protection for output
     for component in canonical_output.components() {
         if let std::path::Component::Normal(name) = component {
             let name_str = name.to_string_lossy();
-            if name_str.starts_with('.') && name_str.len() > 1 && name_str.chars().nth(1) == Some('.') {
+            if name_str.starts_with('.')
+                && name_str.len() > 1
+                && name_str.chars().nth(1) == Some('.')
+            {
                 return Err(CompressionError::UnsupportedFormat(
-                    "Suspicious output path component detected".to_string()
+                    "Suspicious output path component detected".to_string(),
                 ));
             }
         }
     }
-    
+
     Ok(canonical_output)
 }
 
@@ -94,8 +103,10 @@ pub fn validate_output_path(path: &Path) -> Result<PathBuf> {
 pub fn is_potential_image_file(path: &Path) -> bool {
     if let Some(extension) = path.extension() {
         if let Some(ext_str) = extension.to_str() {
-            matches!(ext_str.to_lowercase().as_str(), 
-                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "tif" | "gif" | "avif" | "heic")
+            matches!(
+                ext_str.to_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "tif" | "gif" | "avif" | "heic"
+            )
         } else {
             false
         }
@@ -107,9 +118,9 @@ pub fn is_potential_image_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::TempDir;
 
     #[test]
     fn test_validate_input_path_not_found() {

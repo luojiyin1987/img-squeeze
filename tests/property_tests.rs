@@ -1,7 +1,7 @@
-use proptest::prelude::*;
-use img_squeeze::processing::{CompressionOptions, determine_output_format, resize_image};
+use image::{DynamicImage, GenericImageView, ImageFormat};
 use img_squeeze::batch::is_image_file;
-use image::{DynamicImage, ImageFormat, GenericImageView};
+use img_squeeze::processing::{determine_output_format, resize_image, CompressionOptions};
+use proptest::prelude::*;
 use std::path::Path;
 
 proptest! {
@@ -33,11 +33,11 @@ proptest! {
 
         let mut img = DynamicImage::new_rgb8(width, height);
         let options = CompressionOptions::new(Some(80), Some(new_width), None, None, false, false).unwrap();
-        
+
         resize_image(&mut img, &options);
-        
+
         let (resized_w, resized_h) = img.dimensions();
-        
+
         // With aspect ratio preserved, width should be set and height should be proportional
         assert_eq!(resized_w, new_width);
         // Height should be proportional to maintain aspect ratio
@@ -56,11 +56,11 @@ proptest! {
 
         let mut img = DynamicImage::new_rgb8(width, height);
         let options = CompressionOptions::new(Some(80), None, Some(new_height), None, false, false).unwrap();
-        
+
         resize_image(&mut img, &options);
-        
+
         let (resized_w, resized_h) = img.dimensions();
-        
+
         // With aspect ratio preserved, height should be set and width should be proportional
         assert_eq!(resized_h, new_height);
         // Width should be proportional to maintain aspect ratio
@@ -75,9 +75,9 @@ proptest! {
     ) {
         let path = Path::new(&filename);
         let format_opt = format_override.as_ref().map(|s| s.as_str());
-        
+
         let result = determine_output_format(path, &format_opt.map(|s| s.to_string()));
-        
+
         // Should always return a valid format or a proper error
         match result {
             Ok(format) => {
@@ -96,9 +96,9 @@ proptest! {
     ) {
         let filename = format!("test.{}", extension);
         let path = Path::new(&filename);
-        
+
         let is_image = is_image_file(path);
-        
+
         // Check that known image extensions are recognized
         let expected = matches!(extension.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif");
         assert_eq!(is_image, expected);
@@ -113,7 +113,7 @@ proptest! {
     ) {
         let format_str = format.map(|s| s.to_string());
         let result = CompressionOptions::new(quality, width, height, format_str.clone(), false, false);
-        
+
         match result {
             Ok(options) => {
                 // Check that valid options are set correctly
@@ -140,9 +140,9 @@ proptest! {
 
         let mut img = DynamicImage::new_rgb8(width, height);
         let options = CompressionOptions::new(Some(80), Some(width), Some(height), None, false, false).unwrap();
-        
+
         resize_image(&mut img, &options);
-        
+
         // Dimensions should remain unchanged
         assert_eq!(img.dimensions(), (width, height));
     }
@@ -153,7 +153,7 @@ proptest! {
     ) {
         let path = Path::new(&filename);
         let result = determine_output_format(path, &None);
-        
+
         // Should fallback to JPEG for unknown extensions
         assert_eq!(result.unwrap(), ImageFormat::Jpeg);
     }
