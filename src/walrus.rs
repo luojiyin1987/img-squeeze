@@ -44,11 +44,11 @@ pub async fn upload_to_walrus_async(
     }
 
     let mut file = File::open(file_path)
-        .map_err(|e| CompressionError::Io(e))?;
+        .map_err(CompressionError::Io)?;
     
     let mut data = Vec::new();
     file.read_to_end(&mut data)
-        .map_err(|e| CompressionError::Io(e))?;
+        .map_err(CompressionError::Io)?;
 
     let client = WalrusClient::new(&options.aggregator_url, &options.publisher_url)
         .map_err(|e| CompressionError::WalrusUpload(format!("Failed to create Walrus client: {}", e)))?;
