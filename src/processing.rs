@@ -14,10 +14,11 @@ pub struct CompressionOptions {
     pub height: Option<u32>,
     pub format: Option<String>,
     pub exact_resize: bool,
+    pub dry_run: bool,
 }
 
 impl CompressionOptions {
-    pub fn new(quality: Option<u8>, width: Option<u32>, height: Option<u32>, format: Option<String>, exact_resize: bool) -> Result<Self> {
+    pub fn new(quality: Option<u8>, width: Option<u32>, height: Option<u32>, format: Option<String>, exact_resize: bool, dry_run: bool) -> Result<Self> {
         let quality = quality.unwrap_or(80);
         if !(1..=100).contains(&quality) {
             return Err(CompressionError::InvalidQuality(quality));
@@ -29,6 +30,7 @@ impl CompressionOptions {
             height,
             format,
             exact_resize,
+            dry_run,
         })
     }
 }
@@ -111,6 +113,28 @@ pub fn compress_image(
 ) -> Result<()> {
     info!("🗜️  Compressing image: {:?}", input);
     verbose!("Output: {:?}", output);
+    
+    if options.dry_run {
+        info!("🔍 DRY RUN MODE - No files will be modified");
+        
+        // Just load and analyze the image
+        let (img, original_size) = load_image_with_metadata(&input)?;
+        
+        info!("📊 Would process: {} bytes ({}x{})", original_size, img.width(), img.height());
+        
+        if options.width.is_some() || options.height.is_some() {
+            info!("🔄 Would resize image");
+            verbose!("Resize options: width={:?}, height={:?}, exact_resize={}", 
+                    options.width, options.height, options.exact_resize);
+        }
+        
+        if let Some(ref format) = options.format {
+            info!("🎨 Would convert to format: {}", format);
+        }
+        
+        info!("✅ Dry run completed - no changes made");
+        return Ok(());
+    }
     
     let pb = if crate::logger::is_quiet() {
         ProgressBar::hidden()
@@ -226,30 +250,32 @@ mod tests {
 
     #[test]
     fn test_compression_options_creation() {
-        let options = CompressionOptions::new(Some(85), Some(800), Some(600), Some("webp".to_string()), false).unwrap();
+        let options = CompressionOptions::new(Some(85), Some(800), Some(600), Some("webp".to_string()), false, false).unwrap();
         assert_eq!(options.quality, 85);
         assert_eq!(options.width, Some(800));
         assert_eq!(options.height, Some(600));
         assert_eq!(options.format, Some("webp".to_string()));
         assert_eq!(options.exact_resize, false);
+        assert_eq!(options.dry_run, false);
     }
 
     #[test]
     fn test_compression_options_default() {
-        let options = CompressionOptions::new(None, None, None, None, false).unwrap();
+        let options = CompressionOptions::new(None, None, None, None, false, false).unwrap();
         assert_eq!(options.quality, 80);
         assert_eq!(options.width, None);
         assert_eq!(options.height, None);
         assert_eq!(options.format, None);
         assert_eq!(options.exact_resize, false);
+        assert_eq!(options.dry_run, false);
     }
 
     #[test]
     fn test_compression_options_invalid_quality() {
-        let result = CompressionOptions::new(Some(0), None, None, None, false);
+        let result = CompressionOptions::new(Some(0), None, None, None, false, false);
         assert!(matches!(result, Err(CompressionError::InvalidQuality(0))));
         
-        let result = CompressionOptions::new(Some(101), None, None, None, false);
+        let result = CompressionOptions::new(Some(101), None, None, None, false, false);
         assert!(matches!(result, Err(CompressionError::InvalidQuality(101))));
     }
 
@@ -289,7 +315,7 @@ mod tests {
     #[test]
     fn test_resize_image_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(1000), None, None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(1000), None, None, false, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -300,7 +326,7 @@ mod tests {
     #[test]
     fn test_resize_image_height_only() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), None, Some(750), None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), None, Some(750), None, false, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -311,7 +337,7 @@ mod tests {
     #[test]
     fn test_resize_image_both_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(800), Some(600), None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(800), Some(600), None, false, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -321,7 +347,7 @@ mod tests {
     #[test]
     fn test_resize_image_no_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), None, None, None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), None, None, None, false, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -331,7 +357,7 @@ mod tests {
     #[test]
     fn test_resize_image_same_dimensions() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(2000), Some(1500), None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(2000), Some(1500), None, false, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -341,7 +367,7 @@ mod tests {
     #[test]
     fn test_resize_image_exact_width() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), Some(1000), None, None, true).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(1000), None, None, true, false).unwrap();
 
         resize_image(&mut img, &options);
         
@@ -352,7 +378,7 @@ mod tests {
     #[test]
     fn test_resize_image_exact_height() {
         let mut img = DynamicImage::new_rgb8(2000, 1500);
-        let options = CompressionOptions::new(Some(80), None, Some(750), None, true).unwrap();
+        let options = CompressionOptions::new(Some(80), None, Some(750), None, true, false).unwrap();
 
         resize_image(&mut img, &options);
         

@@ -7,14 +7,14 @@ use std::path::Path;
 proptest! {
     #[test]
     fn compression_options_quality_in_range(quality in 1u8..=100u8) {
-        let options = CompressionOptions::new(Some(quality), None, None, None, false);
+        let options = CompressionOptions::new(Some(quality), None, None, None, false, false);
         assert!(options.is_ok());
     }
 
     #[test]
     fn compression_options_invalid_quality(quality in 0u8..200u8) {
         // Test invalid quality values (0 and > 100)
-        let result = CompressionOptions::new(Some(quality), None, None, None, false);
+        let result = CompressionOptions::new(Some(quality), None, None, None, false, false);
         if quality == 0 || quality > 100 {
             assert!(result.is_err());
         } else {
@@ -32,7 +32,7 @@ proptest! {
         prop_assume!(new_width != width); // Only test if resize is needed
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), Some(new_width), None, None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(new_width), None, None, false, false).unwrap();
         
         resize_image(&mut img, &options);
         
@@ -55,7 +55,7 @@ proptest! {
         prop_assume!(new_height != height); // Only test if resize is needed
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), None, Some(new_height), None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), None, Some(new_height), None, false, false).unwrap();
         
         resize_image(&mut img, &options);
         
@@ -112,7 +112,7 @@ proptest! {
         format in prop::option::weighted(0.3, prop::sample::select(&["jpg", "png", "webp"]))
     ) {
         let format_str = format.map(|s| s.to_string());
-        let result = CompressionOptions::new(quality, width, height, format_str.clone(), false);
+        let result = CompressionOptions::new(quality, width, height, format_str.clone(), false, false);
         
         match result {
             Ok(options) => {
@@ -122,6 +122,7 @@ proptest! {
                 assert_eq!(options.height, height);
                 assert_eq!(options.format, format_str);
                 assert_eq!(options.exact_resize, false);
+                assert_eq!(options.dry_run, false);
             }
             Err(_) => {
                 // Only error should be invalid quality
@@ -138,7 +139,7 @@ proptest! {
         prop_assume!(width > 0 && height > 0);
 
         let mut img = DynamicImage::new_rgb8(width, height);
-        let options = CompressionOptions::new(Some(80), Some(width), Some(height), None, false).unwrap();
+        let options = CompressionOptions::new(Some(80), Some(width), Some(height), None, false, false).unwrap();
         
         resize_image(&mut img, &options);
         

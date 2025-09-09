@@ -45,6 +45,9 @@ pub enum Commands {
         
         #[arg(long, help = "Use exact resize (may distort aspect ratio)")]
         exact_resize: bool,
+        
+        #[arg(long, help = "Show what would be done without actually processing")]
+        dry_run: bool,
     },
     
     #[command(about = "Compress multiple images in parallel")]
@@ -75,6 +78,9 @@ pub enum Commands {
         
         #[arg(long, help = "Use exact resize (may distort aspect ratio)")]
         exact_resize: bool,
+        
+        #[arg(long, help = "Show what would be done without actually processing")]
+        dry_run: bool,
     },
     
     #[command(about = "Upload an image to Walrus storage")]

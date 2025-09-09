@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     logger::set_verbose_mode(args.verbose);
     
     match args.command {
-        Commands::Compress { input, output, quality, width, height, format, threads, exact_resize } => {
+        Commands::Compress { input, output, quality, width, height, format, threads, exact_resize, dry_run } => {
             setup_thread_pool(threads);
             
             // Validate input and output paths
@@ -36,12 +36,12 @@ fn main() -> Result<()> {
             }
             let validated_output = validate_output_path(&output)?;
             
-            let options = CompressionOptions::new(quality, width, height, format, exact_resize)?;
+            let options = CompressionOptions::new(quality, width, height, format, exact_resize, dry_run)?;
             compress_image(input, validated_output, options)?;
         }
-        Commands::Batch { input, output, quality, width, height, format, threads, recursive, exact_resize } => {
+        Commands::Batch { input, output, quality, width, height, format, threads, recursive, exact_resize, dry_run } => {
             setup_thread_pool(threads);
-            let options = CompressionOptions::new(quality, width, height, format, exact_resize)?;
+            let options = CompressionOptions::new(quality, width, height, format, exact_resize, dry_run)?;
             batch_compress_images(input, output, options, recursive)?;
         }
         Commands::Upload { input, aggregator_url, publisher_url, epochs, temp } => {
