@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/badge/crates.io-v0.1.0-blue.svg)](https://crates.io/)
 [![Parallel](https://img.shields.io/badge/parallel-rayon-green.svg)](https://github.com/rayon-rs/rayon)
 
-一个用 Rust 编写的快速、高效的图片压缩工具，支持多线程并行处理、批量压缩和多种图片格式。
+一个用 Rust 编写的快速、高效的图片压缩工具，支持多线程并行处理、批量压缩、多种图片格式和去中心化存储。
 
 ## ✨ 特性
 
@@ -18,6 +18,7 @@
 - 🔧 **灵活配置** - 自定义线程数和递归处理
 - 🎨 **友好界面** - 清晰的进度提示和错误信息
 - 🚀 **PNG 优化** - 使用 oxipng 库进行高级 PNG 压缩优化
+- 🌐 **Walrus 上传** - 支持上传到 Walrus 去中心化存储网络
 
 ## 📦 安装
 
@@ -108,6 +109,40 @@ img-squeeze batch "*.jpg" ./compressed
 img-squeeze batch "./photos/*.png" ./compressed
 ```
 
+### Walrus 上传（新增功能）
+
+```bash
+# 上传到 Walrus（默认设置）
+img-squeeze upload image.jpg
+
+# 上传到自定义 Walrus 节点
+img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -p https://publisher.walrus-testnet.walrus.space
+
+# 上传并设置存储时长（epochs）
+img-squeeze upload image.jpg -e 20
+
+# 组合选项
+img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -e 15
+```
+
+上传成功后，您将获得：
+- 🆔 **Blob ID** - 用于唯一标识上传的文件
+- 🌐 **访问 URL** - 直接访问上传文件的链接
+- 📊 **文件信息** - 文件大小和存储详情
+
+输出示例：
+```bash
+📤 Uploading to Walrus: "image.jpg"
+🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
+🔗 Publisher URL: https://publisher.walrus-testnet.walrus.space
+⏰ Epochs: Some(10)
+✅ Upload successful!
+🆔 Blob ID: 3xAm...V7n9
+🌐 Access URL: https://aggregator.walrus-testnet.walrus.space/v1/blobs/3xAm...V7n9
+📊 File size: 1024 bytes
+💡 You can use the blob ID to retrieve the file later
+```
+
 ### 查看图片信息
 
 ```bash
@@ -157,6 +192,18 @@ img-squeeze info image.jpg
 - `-H, --height <HEIGHT>` - 最大高度（像素）
 - `-f, --format <FORMAT>` - 输出格式 (jpeg, png, webp)
 
+### upload 命令
+
+上传图片到 Walrus 去中心化存储网络。
+
+**参数：**
+- `INPUT` - 要上传的图片文件路径
+
+**选项：**
+- `-a, --aggregator-url <AGGREGATOR_URL>` - Walrus aggregator URL
+- `-p, --publisher-url <PUBLISHER_URL>` - Walrus publisher URL  
+- `-e, --epochs <EPOCHS>` - 存储时长（epochs）
+
 ### info 命令
 
 显示图片的详细信息。
@@ -193,12 +240,18 @@ cargo clippy
 ```
 img-squeeze/
 ├── src/
-│   └── main.rs          # 主程序入口
+│   ├── main.rs          # 主程序入口
+│   ├── cli.rs           # 命令行接口
+│   ├── processing.rs   # 核心压缩逻辑
+│   ├── batch.rs         # 批量处理
+│   ├── info.rs          # 图片信息分析
+│   ├── walrus.rs        # Walrus 存储集成
+│   └── error.rs         # 错误处理
 ├── Cargo.toml           # 项目配置
 ├── LICENSE              # MIT 许可证
 ├── README.md            # 项目说明
-├── .gitignore           # Git 忽略文件
-└── CLAUDE.md            # Claude Code 开发指南
+├── CLAUDE.md            # Claude Code 开发指南
+└── WALRUS_URLS.md       # Walrus 网络地址说明
 ```
 
 ## 📊 性能特点
@@ -208,6 +261,9 @@ img-squeeze/
 - **并行处理** - 支持多线程图片处理（基于 Rayon）
 - **PNG 优化** - 使用 oxipng 进行无损 PNG 压缩，支持 Zopfli 算法
 - **流式处理** - 大文件的流式处理（未来版本）
+- **去中心化存储** - 集成 Walrus 网络，支持区块链存储
+- **异步上传** - 基于 tokio 的异步文件上传
+- **网络优化** - 智能重试和错误处理机制
 
 ## 🤝 贡献
 
@@ -230,6 +286,9 @@ img-squeeze/
 - [oxipng](https://github.com/shssoichiro/oxipng) - 高级 PNG 压缩优化库
 - [clap](https://github.com/clap-rs/clap) - 命令行参数解析库
 - [indicatif](https://github.com/console-rs/indicatif) - 进度条库
+- [walrus_rs](https://github.com/luojiyin1987/walrus_rs) - Walrus 去中心化存储客户端库
+- [tokio](https://github.com/tokio-rs/tokio) - Rust 异步运行时
+- [Walrus Network](https://walrus.com/) - 去中心化存储网络
 
 ## 📞 支持
 
