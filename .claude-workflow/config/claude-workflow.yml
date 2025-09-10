@@ -1,0 +1,348 @@
+# Claude Code + Copilot 通用配置模板
+# 适用于任何项目的智能PR审查配置
+
+version: "1.0"
+
+# 项目信息 - 自动检测，也可手动覆盖
+project:
+  name: "auto-detect"  # 项目名称，自动检测
+  type: "auto-detect"  # 项目类型：rust|nodejs|python|java|go|react|vue|angular|terraform|docker|generic
+  language: "auto-detect"  # 编程语言
+  framework: "auto-detect"  # 框架：react|vue|angular|spring|express|django|flask|etc.
+
+# 分析配置
+analysis:
+  # 基础分析 - 推荐保持开启
+  basics:
+    code_quality: true        # 代码质量检查
+    security_scan: true       # 安全扫描
+    dependency_check: true    # 依赖检查
+    test_coverage: true       # 测试覆盖率
+    documentation_check: false # 文档检查
+    
+  # 高级分析 - 根据项目需要选择
+  advanced:
+    performance_analysis: true  # 性能分析
+    architecture_review: true   # 架构审查
+    best_practices: true        # 最佳实践检查
+    accessibility_check: false  # 可访问性检查
+    compliance_check: false     # 合规性检查
+    
+  # 自定义规则
+  custom_rules:
+    - name: "custom_rule_1"
+      description: "自定义规则1"
+      enabled: false
+      severity: "warning"
+    - name: "custom_rule_2"
+      description: "自定义规则2"
+      enabled: false
+      severity: "error"
+
+# Copilot配置
+copilot:
+  # 审查重点 - 根据项目特点调整
+  focus_areas:
+    - "code_quality"
+    - "security"
+    - "performance"
+    - "maintainability"
+    - "testing"
+    - "documentation"
+  
+  # 审查模板
+  template: "comprehensive"  # comprehensive|focused|security|performance
+  
+  # 自定义提示词 - 针对项目特点
+  custom_prompts:
+    - "请关注项目的特定需求和架构模式"
+    - "考虑团队的开发规范和最佳实践"
+    - "提供具体的代码改进建议"
+  
+  # 审查深度
+  depth: "detailed"  # basic|detailed|comprehensive
+
+# 工作流触发器
+triggers:
+  on_pr: true           # PR创建时触发
+  on_push: false        # 推送时触发
+  on_schedule: false    # 定时触发
+  on_manual: true       # 手动触发
+  
+  # 定时触发配置
+  schedule:
+    cron: "0 2 * * 1"   # 每周一凌晨2点
+    timezone: "UTC"
+
+# 通知配置
+notifications:
+  # Slack通知
+  slack:
+    enabled: false
+    webhook: "${{ secrets.SLACK_WEBHOOK }}"
+    channel: "#code-review"
+    template: "detailed"
+    
+  # 邮件通知
+  email:
+    enabled: false
+    recipients: []
+    template: "html"
+    
+  # Teams通知
+  teams:
+    enabled: false
+    webhook: "${{ secrets.TEAMS_WEBHOOK }}"
+    
+  # GitHub通知
+  github:
+    enabled: true
+    issues: true
+    discussions: true
+
+# 质量门禁
+quality_gates:
+  # 代码质量
+  code_quality:
+    max_warnings: 10
+    max_errors: 0
+    fail_on_error: true
+    
+  # 安全性
+  security:
+    max_vulnerabilities: 0
+    severity_levels: ["critical", "high"]
+    fail_on_vulnerability: true
+    
+  # 测试覆盖率
+  test_coverage:
+    min_coverage: 80  # 最小覆盖率百分比
+    fail_below_min: true
+    
+  # 性能
+  performance:
+    max_regression: 5  # 最大性能回归百分比
+    fail_on_regression: true
+
+# 报告配置
+reporting:
+  # 报告格式
+  formats:
+    - "markdown"
+    - "json"
+    - "html"
+    
+  # 报告保存位置
+  output_dir: ".claude-workflow/reports"
+  
+  # 历史记录
+  history:
+    keep_days: 30
+    max_reports: 100
+    
+  # 报告分发
+  distribution:
+    pr_comment: true
+    artifact: true
+    email: false
+    slack: false
+
+# 集成配置
+integrations:
+  # SonarQube集成
+  sonarqube:
+    enabled: false
+    url: "${{ secrets.SONARQUBE_URL }}"
+    token: "${{ secrets.SONARQUBE_TOKEN }}"
+    
+  # Jira集成
+  jira:
+    enabled: false
+    url: "${{ secrets.JIRA_URL }}"
+    token: "${{ secrets.JIRA_TOKEN }}"
+    project_key: "PROJ"
+    
+  # GitHub集成
+  github:
+    enabled: true
+    token: "${{ secrets.GITHUB_TOKEN }}"
+    
+  # GitLab集成
+  gitlab:
+    enabled: false
+    url: "${{ secrets.GITLAB_URL }}"
+    token: "${{ secrets.GITLAB_TOKEN }}"
+
+# 环境配置
+environments:
+  # 开发环境
+  development:
+    skip_security: false
+    skip_performance: true
+    skip_tests: false
+    
+  # 测试环境
+  testing:
+    skip_security: false
+    skip_performance: false
+    skip_tests: false
+    
+  # 生产环境
+  production:
+    skip_security: false
+    skip_performance: false
+    skip_tests: false
+    require_approval: true
+
+# 项目特定配置
+project_specific:
+  # Rust项目
+  rust:
+    edition: "2021"
+    features: []
+    deny_warnings: true
+    
+  # Node.js项目
+  nodejs:
+    package_manager: "npm"  # npm|yarn|pnpm
+    typescript: true
+    lint_rules: "recommended"
+    
+  # Python项目
+  python:
+    version: "3.8+"
+    framework: "none"  # django|flask|fastapi|none
+    type_checking: true
+    
+  # Java项目
+  java:
+    version: "11+"
+    build_tool: "maven"  # maven|gradle
+    framework: "none"  # spring|quarkus|micronaut|none
+    
+  # Go项目
+  go:
+    version: "1.18+"
+    modules: true
+    race_detection: true
+    
+  # Web前端项目
+  web:
+    framework: "none"  # react|vue|angular|svelte|none
+    typescript: true
+    accessibility: true
+    
+  # DevOps项目
+  devops:
+    iac_tool: "none"  # terraform|ansible|puppet|chef|none
+    cloud_provider: "none"  # aws|azure|gcp|none
+
+# 自定义钩子
+hooks:
+  # 分析前钩子
+  before_analysis:
+    - name: "setup_environment"
+      enabled: false
+      script: "scripts/setup.sh"
+    - name: "install_dependencies"
+      enabled: false
+      script: "scripts/install-deps.sh"
+      
+  # 分析后钩子
+  after_analysis:
+    - name: "cleanup"
+      enabled: false
+      script: "scripts/cleanup.sh"
+    - name: "notify_team"
+      enabled: false
+      script: "scripts/notify.sh"
+      
+  # 失败钩子
+  on_failure:
+    - name: "handle_failure"
+      enabled: false
+      script: "scripts/failure.sh"
+      
+  # 成功钩子
+  on_success:
+    - name: "celebrate"
+      enabled: false
+      script: "scripts/success.sh"
+
+# 缓存配置
+cache:
+  enabled: true
+  ttl: 3600  # 缓存时间（秒）
+  key_prefix: "claude-workflow"
+  
+  # 缓存策略
+  strategies:
+    - name: "dependencies"
+      enabled: true
+      paths:
+        - "node_modules"
+        - "target"
+        - ".venv"
+        - "vendor"
+        
+    - name: "analysis_results"
+      enabled: true
+      paths:
+        - ".claude-workflow/cache"
+
+# 调试配置
+debug:
+  enabled: false
+  level: "info"  # debug|info|warn|error
+  output: "console"  # console|file|both
+  file_path: ".claude-workflow/debug.log"
+  
+  # 详细日志
+  verbose: false
+  log_commands: true
+  log_environment: true
+
+# 实验性功能
+experimental:
+  # AI驱动的代码分析
+  ai_analysis:
+    enabled: false
+    model: "claude-3.5-sonnet"
+    max_tokens: 4000
+    
+  # 机器学习缺陷预测
+  ml_defect_prediction:
+    enabled: false
+    model_path: ".claude-workflow/models"
+    
+  # 自动修复建议
+  auto_fix:
+    enabled: false
+    confidence_threshold: 0.8
+    apply_fixes: false
+    
+  # 智能测试生成
+  smart_test_generation:
+    enabled: false
+    coverage_target: 90
+
+# 向后兼容性
+compatibility:
+  version: "1.0"
+  migration_mode: false
+  deprecated_features: []
+  
+# 元数据
+metadata:
+  created_by: "claude-code-workflow"
+  created_at: "2024-01-01"
+  version: "1.0.0"
+  description: "Claude Code + Copilot 通用工作流配置"
+  
+  # 标签
+  tags:
+    - "code-review"
+    - "automation"
+    - "quality"
+    - "security"
+    - "ai-assisted"
