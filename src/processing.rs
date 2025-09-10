@@ -219,6 +219,12 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
+            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
+                format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
+            )),
+            "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
+                format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
+            )),
             _ => Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else if let Some(ext) = output.extension().and_then(|ext| ext.to_str()) {
@@ -227,6 +233,12 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
+            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
+                format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
+            )),
+            "jxl" => Err(CompressionError::UnsupportedFormat(
+                format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
+            )),
             _ => Ok(ImageFormat::Jpeg),
         }
     } else {
@@ -385,6 +397,28 @@ mod tests {
             result,
             Err(CompressionError::UnsupportedFormat(_))
         ));
+
+        // Test HEIC/HEIF recognition with helpful error message
+        let result = determine_output_format(path, &Some("heic".to_string()));
+        assert!(matches!(
+            result,
+            Err(CompressionError::UnsupportedFormat(_))
+        ));
+        if let Err(CompressionError::UnsupportedFormat(msg)) = result {
+            assert!(msg.contains("not yet supported"));
+            assert!(msg.contains("AVIF"));
+        }
+
+        // Test JPEG XL recognition with helpful error message  
+        let result = determine_output_format(path, &Some("jxl".to_string()));
+        assert!(matches!(
+            result,
+            Err(CompressionError::UnsupportedFormat(_))
+        ));
+        if let Err(CompressionError::UnsupportedFormat(msg)) = result {
+            assert!(msg.contains("not yet supported"));
+            assert!(msg.contains("AVIF"));
+        }
     }
 
     #[test]
