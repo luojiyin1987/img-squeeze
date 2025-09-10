@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 }
 
 /// Sets up the global thread pool for parallel processing
-/// 
+///
 /// # Arguments
 /// * `threads` - Optional number of threads to use. If None, uses default (CPU count)
 fn setup_thread_pool(threads: Option<usize>) {
@@ -81,10 +81,10 @@ fn setup_thread_pool(threads: Option<usize>) {
 }
 
 /// Displays information about an image file
-/// 
+///
 /// # Arguments
 /// * `input_path` - Path to the image file to analyze
-/// 
+///
 /// # Returns
 /// * `Ok(())` if analysis succeeds
 /// * `Err(CompressionError)` if file cannot be read or analyzed
