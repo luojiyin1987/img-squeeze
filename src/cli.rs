@@ -35,6 +35,7 @@ pub enum Commands {
             short = 'f',
             long,
             value_parser = ["jpeg","jpg","png","webp","avif"],
+            value_name = "FORMAT",
             help = "Output format (jpeg, jpg, png, webp, avif). Note: heic/heif/jxl are recognized as inputs only."
         )]
         format: Option<String>,
@@ -64,6 +65,7 @@ pub enum Commands {
             short = 'f',
             long,
             value_parser = ["jpeg","jpg","png","webp","avif"],
+            value_name = "FORMAT",
             help = "Output format (jpeg, jpg, png, webp, avif). Note: heic/heif/jxl are recognized as inputs only."
         )]
         format: Option<String>,

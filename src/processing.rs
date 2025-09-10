@@ -3,7 +3,7 @@ use crate::constants::{
     MAX_IMAGE_DIMENSION, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
 };
 use crate::error::{CompressionError, Result};
-use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
+use image::{DynamicImage, GenericImageView, ImageEncoder, ImageFormat, ImageReader};
 use indicatif::{ProgressBar, ProgressStyle};
 use oxipng::{Deflaters, InFile, Options, OutFile};
 use std::fs;
@@ -115,13 +115,13 @@ pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)
 
     // Check for unsupported input formats and provide helpful guidance
     if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
-        match ext.to_lowercase().as_str() {
+        match ext.to_ascii_lowercase().as_str() {
             "heic" | "heif" => {
                 return Err(CompressionError::UnsupportedFormat(
                     "HEIC/HEIF format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
                 ));
             }
-            "jxl" => {
+            "jxl" | "jpegxl" => {
                 return Err(CompressionError::UnsupportedFormat(
                     "JPEG XL format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
                 ));
@@ -245,7 +245,8 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             _ => Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else if let Some(ext) = output.extension().and_then(|ext| ext.to_str()) {
-        match ext {
+        let ext = ext.to_ascii_lowercase();
+        match ext.as_str() {
             "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
@@ -253,7 +254,7 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
             )),
-            "jxl" => Err(CompressionError::UnsupportedFormat(
+            "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
             )),
             _ => Ok(ImageFormat::Jpeg),
@@ -329,7 +330,21 @@ pub fn save_image(
             img.save_with_format(output, image::ImageFormat::WebP)?;
         }
         ImageFormat::Avif => {
-            img.save_with_format(output, image::ImageFormat::Avif)?;
+            // Honor quality and enable parallel encoding (when "image/rayon" is enabled).
+            use image::codecs::avif::AvifEncoder;
+            let rgba = img.to_rgba8();
+            let (w, h) = (rgba.width(), rgba.height());
+            let mut file = std::fs::File::create(output)?;
+            // Heuristic speed; consider surfacing as an option later.
+            let speed: u8 = 6;
+            let enc = AvifEncoder::new_with_speed_quality(&mut file, speed, options.quality);
+            // If you later thread this via CLI, call: enc = enc.with_num_threads(Some(n));
+            enc.write_image(
+                rgba.as_raw(),
+                w,
+                h,
+                image::ExtendedColorType::Rgba8
+            )?;
         }
         _ => {
             return Err(CompressionError::UnsupportedFormat(format!("{:?}", format)));
@@ -436,6 +451,27 @@ mod tests {
             assert!(msg.contains("not yet supported"));
             assert!(msg.contains("AVIF"));
         }
+
+        // Alias: jpegxl should behave like jxl
+        let result = determine_output_format(path, &Some("jpegxl".to_string()));
+        assert!(matches!(result, Err(CompressionError::UnsupportedFormat(_))));
+        if let Err(CompressionError::UnsupportedFormat(msg)) = result {
+            assert!(msg.contains("not yet supported"));
+            assert!(msg.contains("AVIF"));
+        }
+    }
+
+    #[test]
+    fn test_determine_output_format_case_insensitive_exts() {
+        // After normalizing extension cases, uppercase should work.
+        let path = Path::new("IMAGE.AVIF");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Avif);
+
+        // Unsupported alias via extension
+        let path = Path::new("photo.jpegxl");
+        let result = determine_output_format(path, &None);
+        assert!(matches!(result, Err(CompressionError::UnsupportedFormat(_))));
     }
 
     #[test]
