@@ -1,0 +1,159 @@
+# Claude Code + Copilot 工作流配置
+# 针对 img-squeeze 项目的优化配置
+
+version: "1.0"
+
+# 项目信息
+project:
+  name: "img-squeeze"
+  type: "rust"
+  language: "rust"
+  framework: "none"
+  description: "Rust-based image compression tool"
+
+# 分析配置 - 针对 Rust 项目优化
+analysis:
+  basics:
+    code_quality: true        # 代码质量检查
+    security_scan: true       # 安全扫描
+    dependency_check: true    # 依赖检查
+    test_coverage: true       # 测试覆盖率
+    documentation_check: true  # Rust 文档检查
+    
+  advanced:
+    performance_analysis: true  # 性能分析（图像处理优化）
+    architecture_review: true   # 架构审查
+    best_practices: true        # Rust 最佳实践
+    accessibility_check: false  # 不适用于 CLI 工具
+    compliance_check: false     # 合规性检查
+
+# Rust 特定配置
+rust_specific:
+  edition: "2021"
+  features: ["default", "webp", "png_optimization"]
+  deny_warnings: true
+  clippy_rules: "pedantic"
+  format_check: true
+  doc_coverage: 80
+
+# Copilot 配置 - 针对 Rust 项目
+copilot:
+  focus_areas:
+    - "rust_ownership_and_borrowing"
+    - "error_handling_patterns"
+    - "performance_optimization"
+    - "memory_safety"
+    - "concurrency_safety"
+    - "async_patterns"
+  
+  template: "rust_focused"
+  custom_prompts:
+    - "请关注 Rust 的所有权和借用检查机制"
+    - "检查是否有不必要的内存分配"
+    - "评估错误处理的最佳实践"
+    - "考虑并发安全性"
+    - "分析图像处理算法的性能优化"
+  
+  depth: "detailed"
+
+# 工作流触发器
+triggers:
+  on_pr: true
+  on_push: false
+  on_manual: true
+
+# 质量门禁 - Rust 项目特定
+quality_gates:
+  code_quality:
+    max_warnings: 5
+    max_errors: 0
+    fail_on_error: true
+    
+  security:
+    max_vulnerabilities: 0
+    severity_levels: ["critical", "high"]
+    fail_on_vulnerability: true
+    
+  test_coverage:
+    min_coverage: 85
+    fail_below_min: true
+    
+  performance:
+    max_regression: 10  # 图像处理允许更多性能回归
+    fail_on_regression: false
+
+# 报告配置
+reporting:
+  formats:
+    - "markdown"
+    - "json"
+  output_dir: ".claude-workflow/reports"
+  distribution:
+    pr_comment: true
+    artifact: true
+
+# 集成配置
+integrations:
+  github:
+    enabled: true
+    token: "${{ secrets.GITHUB_TOKEN }}"
+    
+  cargo:
+    enabled: true
+    clippy: true
+    fmt: true
+    audit: true
+    doc: true
+
+# 环境配置
+environments:
+  development:
+    skip_security: false
+    skip_performance: true
+    skip_tests: false
+    
+  production:
+    skip_security: false
+    skip_performance: false
+    skip_tests: false
+    require_approval: true
+
+# 缓存配置
+cache:
+  enabled: true
+  ttl: 1800  # 30分钟缓存
+  key_prefix: "img-squeeze-workflow"
+  
+  strategies:
+    - name: "cargo_target"
+      enabled: true
+      paths:
+        - "target"
+        - "Cargo.lock"
+        
+    - name: "analysis_results"
+      enabled: true
+      paths:
+        - ".claude-workflow/cache"
+
+# 调试配置
+debug:
+  enabled: false
+  level: "info"
+  output: "console"
+  verbose: false
+
+# 元数据
+metadata:
+  created_by: "claude-code-workflow"
+  created_at: "2024-01-01"
+  version: "1.0.0"
+  description: "img-squeeze project Claude Code + Copilot workflow configuration"
+  
+  tags:
+    - "rust"
+    - "image-processing"
+    - "cli-tool"
+    - "code-review"
+    - "automation"
+    - "quality"
