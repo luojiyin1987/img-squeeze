@@ -6,74 +6,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **img-squeeze** is a Rust-based image compression tool that reduces file sizes while maintaining quality. It supports multiple image formats (JPEG, PNG, WebP, BMP, TIFF, GIF) with features like parallel processing, batch compression, and advanced PNG optimization using oxipng.
 
-## Claude Code + Copilot PR工作流
+## Claude 工作流
 
-这个项目集成了通用的Claude Code + Copilot PR审查工作流，提供智能化的代码质量保障。
+本项目集成了简化的 Claude 工作流系统，用于自动化代码质量检查和构建流程。
 
 ### 🚀 工作流特性
 
-- **项目类型自动检测**: 自动识别Rust项目并应用相应的分析工具
-- **智能分析**: 使用cargo clippy、cargo fmt、cargo audit等Rust专用工具
-- **Copilot集成**: 自动调用GitHub Copilot进行代码审查
-- **质量门禁**: 包含代码质量、安全性、测试覆盖率等检查
-- **自动化报告**: 生成详细的审查报告和改进建议
+- **简单实用**: 轻量级配置，易于维护和扩展
+- **Rust 优化**: 针对 Rust 项目的专用工具链
+- **自动化**: 一键执行完整的开发和测试流程
+- **错误处理**: 遇到错误自动停止，确保质量
 
 ### 📋 使用方法
 
-#### 自动设置（推荐）
+#### 运行完整工作流
 ```bash
-# 运行项目适配脚本
-./scripts/claude-workflow-adapter.sh
+# 执行完整的 Claude 工作流
+./claude-workflow.sh
 ```
 
-#### 手动运行
+#### 手动执行各个阶段
 ```bash
-# 运行Claude Code分析
-./scripts/run-claude-analysis.sh
+# 代码检查
+cargo check
+cargo clippy
+cargo fmt --check
 
-# 手动触发Copilot审查
-./scripts/trigger-copilot-review.sh <PR_NUMBER>
+# 运行测试
+cargo test --lib
+
+# 构建项目
+cargo build --release
+
+# 性能验证
+./target/release/img-squeeze --help
+./target/release/img-squeeze --version
 ```
 
-### 🔧 生成的文件
+### 🔧 工作流文件
 
-- **claude-workflow.yml**: 通用工作流配置
-- **.claude-workflow/config.yml**: Rust项目特定配置
-- **.github/workflows/claude-copilot-review.yml**: GitHub Actions工作流
-- **scripts/run-claude-analysis.sh**: Rust分析执行脚本
-- **docs/claude-workflow-setup.md**: 详细设置文档
+- **.claude-workflow.yml**: YAML 工作流配置文件
+- **claude-workflow.sh**: Bash 执行脚本
 
-### 🤖 Copilot集成
+### 📊 工作流阶段
 
-工作流会自动在PR评论中调用`@copilot`，重点关注：
-- Rust所有权和借用检查
-- 并发安全性
-- 错误处理模式
-- 性能优化
-- 内存管理
-- 零成本抽象
+1. **代码检查** - 使用 cargo check、clippy、fmt 检查代码质量
+2. **运行测试** - 执行 35 个单元测试确保功能正确
+3. **构建项目** - 构建优化版本用于生产环境
+4. **性能验证** - 验证构建结果和基本功能
 
-### 📊 分析工具
+### 🎯 质量标准
 
-- **cargo clippy**: Rust代码检查和最佳实践
-- **cargo fmt**: 代码格式化
-- **cargo audit**: 安全漏洞扫描
-- **cargo test**: 单元测试执行
-- **cargo outdated**: 依赖更新检查
-
-### 🎯 质量门禁
-
-- 代码质量：无clippy警告
-- 安全性：无已知安全漏洞
-- 测试：所有单元测试通过
-- 文档：代码文档完整性检查
-
-### 📈 自动化触发
-
-- PR创建时自动运行分析
-- PR更新时重新执行
-- 自动生成审查报告
-- 智能调用Copilot审查
+- 代码编译无错误
+- 通过所有 clippy 检查
+- 代码格式符合 Rust 标准
+- 所有单元测试通过
+- 构建的二进制文件正常工作
 
 ## Development Commands
 
@@ -85,6 +73,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cargo check` - Check for compilation errors
 - `cargo clippy` - Run linter for code quality checks
 - `cargo fmt` - Format code according to Rust standards
+
+### Claude Workflow
+
+- `./claude-workflow.sh` - Run complete workflow with all stages
+- `.claude-workflow.yml` - Workflow configuration file
 
 ### Testing
 
@@ -146,6 +139,8 @@ img-squeeze/
 │   ├── walrus.rs        # Walrus storage integration
 │   └── error.rs         # Error types
 ├── Cargo.toml           # Project configuration
+├── .claude-workflow.yml # Claude workflow configuration
+├── claude-workflow.sh   # Claude workflow execution script
 └── target/              # Build artifacts
 ```
 

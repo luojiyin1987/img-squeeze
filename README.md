@@ -270,9 +270,32 @@ cargo check
 cargo clippy
 ```
 
+### Claude 工作流
+
+本项目集成了简化的 Claude 工作流系统，用于自动化代码质量检查和构建流程：
+
+```bash
+# 运行完整的 Claude 工作流
+./claude-workflow.sh
+
+# 或手动执行各个阶段
+cargo check          # 检查编译错误
+cargo clippy         # 代码质量检查
+cargo fmt --check    # 代码格式检查
+cargo test --lib     # 运行单元测试
+cargo build --release # 构建优化版本
+```
+
+**工作流包含：**
+
+- 📝 代码检查 (cargo check, clippy, fmt)
+- 🧪 运行测试 (35个单元测试)
+- 🔨 构建项目 (release版本)
+- ⚡ 性能验证 (功能测试)
+
 ### 项目结构
 
-```
+```shell
 img-squeeze/
 ├── src/
 │   ├── main.rs          # 主程序入口
@@ -286,6 +309,8 @@ img-squeeze/
 ├── LICENSE              # MIT 许可证
 ├── README.md            # 项目说明
 ├── CLAUDE.md            # Claude Code 开发指南
+├── .claude-workflow.yml # Claude 工作流配置
+├── claude-workflow.sh   # Claude 工作流执行脚本
 └── WALRUS_URLS.md       # Walrus 网络地址说明
 ```
 
