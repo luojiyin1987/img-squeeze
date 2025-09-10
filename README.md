@@ -111,6 +111,9 @@ img-squeeze batch "./photos/*.png" ./compressed
 
 ### Walrus 上传（新增功能）
 
+警告：目前为了节约费用，验证功能。默认上传到 Walrus 的测试网。不能保证文件的存储安全。上传成功后，返回的文件名是随机的字符串，同时不包含文件扩展名。需要用户重命名，加上对应的扩展名。用户体验不好。
+有空对 Walrus 提交对应 pr。
+
 ```bash
 # 上传到 Walrus（默认设置）
 img-squeeze upload image.jpg
@@ -129,16 +132,19 @@ img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -
 ```
 
 **临时文件管理：**
+
 - 使用 `-t` 标志上传临时文件，24小时后自动删除
 - 适合测试、开发、临时分享等场景
 - 无需手动删除，系统自动清理
 
 上传成功后，您将获得：
+
 - 🆔 **Blob ID** - 用于唯一标识上传的文件
 - 🌐 **访问 URL** - 直接访问上传文件的链接
 - 📊 **文件信息** - 文件大小和存储详情
 
 输出示例：
+
 ```bash
 📤 Uploading to Walrus: "image.jpg"
 🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
@@ -152,6 +158,7 @@ img-squeeze upload image.jpg -a https://aggregator.walrus-testnet.walrus.space -
 ```
 
 临时上传示例：
+
 ```bash
 📤 Uploading to Walrus: "temp_image.jpg"
 🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
@@ -206,10 +213,12 @@ img-squeeze info image.jpg
 压缩图片文件。
 
 **参数：**
+
 - `INPUT` - 输入图片文件路径
 - `OUTPUT` - 输出图片文件路径
 
 **选项：**
+
 - `-q, --quality <QUALITY>` - 压缩质量 (1-100)，默认 80
 - `-w, --width <WIDTH>` - 最大宽度（像素）
 - `-H, --height <HEIGHT>` - 最大高度（像素）
@@ -220,9 +229,11 @@ img-squeeze info image.jpg
 上传图片到 Walrus 去中心化存储网络。
 
 **参数：**
+
 - `INPUT` - 要上传的图片文件路径
 
 **选项：**
+
 - `-a, --aggregator-url <AGGREGATOR_URL>` - Walrus aggregator URL
 - `-p, --publisher-url <PUBLISHER_URL>` - Walrus publisher URL  
 - `-e, --epochs <EPOCHS>` - 存储时长（epochs）
@@ -232,6 +243,7 @@ img-squeeze info image.jpg
 显示图片的详细信息。
 
 **参数：**
+
 - `INPUT` - 要分析的图片文件路径
 
 ## 🛠️ 开发
@@ -319,7 +331,6 @@ img-squeeze/
 
 1. 查看 [Issues](https://github.com/luojiyin1987/img-squeeze/issues)
 2. 创建新的 Issue
-
 
 ---
 
