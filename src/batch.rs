@@ -338,7 +338,7 @@ pub fn is_image_file(path: &Path) -> bool {
         .map(|ext| {
             matches!(
                 ext.to_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif"
+                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif" | "avif" | "heic" | "heif" | "jxl"
             )
         })
         .unwrap_or(false)
@@ -373,6 +373,7 @@ pub fn generate_output_path(
             "jpeg" | "jpg" => "jpg",
             "png" => "png",
             "webp" => "webp",
+            "avif" => "avif",
             _ => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else {
@@ -414,6 +415,18 @@ mod tests {
         assert!(is_image_file(path));
 
         let path = Path::new("test.gif");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.avif");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.heic");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.heif");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.jxl");
         assert!(is_image_file(path));
 
         let path = Path::new("test.txt");
@@ -459,6 +472,16 @@ mod tests {
         let result =
             generate_output_path(input_path, output_dir, &Some("webp".to_string())).unwrap();
         assert_eq!(result, PathBuf::from("/tmp/output/test.webp"));
+    }
+
+    #[test]
+    fn test_generate_output_path_avif_format() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+
+        let result =
+            generate_output_path(input_path, output_dir, &Some("avif".to_string())).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/output/test.avif"));
     }
 
     #[test]

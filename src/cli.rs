@@ -31,7 +31,13 @@ pub enum Commands {
         #[arg(short = 'H', long, help = "Maximum height in pixels")]
         height: Option<u32>,
 
-        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp)")]
+        #[arg(
+            short = 'f',
+            long,
+            value_parser = ["jpeg","jpg","png","webp","avif"],
+            value_name = "FORMAT",
+            help = "Output format (jpeg, jpg, png, webp, avif). Note: heic/heif/jxl are recognized as inputs only."
+        )]
         format: Option<String>,
 
         #[arg(short = 'j', long, help = "Number of parallel threads (default: auto)")]
@@ -55,7 +61,13 @@ pub enum Commands {
         #[arg(short = 'H', long, help = "Maximum height in pixels")]
         height: Option<u32>,
 
-        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp)")]
+        #[arg(
+            short = 'f',
+            long,
+            value_parser = ["jpeg","jpg","png","webp","avif"],
+            value_name = "FORMAT",
+            help = "Output format (jpeg, jpg, png, webp, avif). Note: heic/heif/jxl are recognized as inputs only."
+        )]
         format: Option<String>,
 
         #[arg(short = 'j', long, help = "Number of parallel threads (default: auto)")]
