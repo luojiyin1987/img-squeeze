@@ -31,13 +31,13 @@ fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
     // for compressed formats like JPEG, and 1-1.5x for uncompressed formats like BMP
     let multiplier = match file_path.extension().and_then(|s| s.to_str()) {
         Some(ext) => match ext.to_lowercase().as_str() {
-            "jpg" | "jpeg" => 4.0, // JPEG compression ratio is typically high
-            "png" => 3.0,          // PNG has good compression
-            "webp" => 3.5,         // WebP has good compression
-            "bmp" | "tiff" => 1.2, // Usually uncompressed or lightly compressed
-            "gif" => 2.0,          // GIF has moderate compression
+            "jpg" | "jpeg" => 4.0,           // JPEG compression ratio is typically high
+            "png" => 3.0,                    // PNG has good compression
+            "webp" => 3.5,                   // WebP has good compression
+            "bmp" | "tiff" => 1.2,           // Usually uncompressed or lightly compressed
+            "gif" => 2.0,                    // GIF has moderate compression
             "avif" | "heic" | "heif" => 4.0, // Modern efficient formats
-            _ => 3.0,              // Default conservative estimate
+            _ => 3.0,                        // Default conservative estimate
         },
         None => 3.0,
     };
@@ -86,9 +86,8 @@ fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)>
 
     // Check against actual available memory (host/container)
     // sysinfo 0.30+ returns bytes. Convert to MiB.
-    let mut sys = System::new_with_specifics(
-        RefreshKind::new().with_memory(MemoryRefreshKind::new())
-    );
+    let mut sys =
+        System::new_with_specifics(RefreshKind::new().with_memory(MemoryRefreshKind::new()));
     sys.refresh_memory();
     let available_mem_mib = sys.available_memory() / (1024 * 1024); // bytes -> MiB
     let required_with_buffer = total_memory_mib_u64 + MIN_AVAILABLE_MEMORY_MIB;
@@ -132,7 +131,10 @@ pub fn batch_compress_images(
 
     println!("📊 Batch validation complete:");
     println!("  📁 Total files: {}", total_files);
-    println!("  💾 Estimated memory usage: {:.1} MiB", estimated_memory_mib);
+    println!(
+        "  💾 Estimated memory usage: {:.1} MiB",
+        estimated_memory_mib
+    );
     println!(
         "  📏 Large images (>{}MiB): {}",
         LARGE_IMAGE_THRESHOLD_MIB, large_image_count
@@ -146,7 +148,8 @@ pub fn batch_compress_images(
         baseline
     };
     // Derive an upper bound from available memory vs. avg per-file estimate
-    let mut sys = System::new_with_specifics(RefreshKind::new().with_memory(MemoryRefreshKind::new()));
+    let mut sys =
+        System::new_with_specifics(RefreshKind::new().with_memory(MemoryRefreshKind::new()));
     sys.refresh_memory();
     let available_mem_mib = sys.available_memory() / (1024 * 1024);
     let avg_per_file_mib = ((estimated_memory_mib / total_files as f64).ceil() as u64).max(1);
