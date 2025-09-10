@@ -1,6 +1,6 @@
 use crate::constants::{
-    LARGE_IMAGE_THRESHOLD_MB, MAX_BATCH_FILES, MAX_BATCH_MEMORY_MB, MAX_CONCURRENT_LARGE_IMAGES,
-    MIN_AVAILABLE_MEMORY_MB,
+    LARGE_IMAGE_THRESHOLD_MIB, MAX_BATCH_FILES, MAX_BATCH_MEMORY_MIB, MAX_CONCURRENT_LARGE_IMAGES,
+    MIN_AVAILABLE_MEMORY_MIB,
 };
 use crate::error::{CompressionError, Result};
 use crate::processing::{process_image_pipeline, CompressionOptions};
@@ -21,11 +21,11 @@ use walkdir::WalkDir;
 /// * `file_path` - Path to the image file
 ///
 /// # Returns
-/// * `Ok(memory_mb)` - Estimated memory usage in MB
+/// * `Ok(memory_mib)` - Estimated memory usage in MiB
 /// * `Err(CompressionError)` - If file metadata cannot be read
 fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
     let metadata = fs::metadata(file_path)?;
-    let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+    let file_size_mib = metadata.len() as f64 / (1024.0 * 1024.0);
 
     // Conservative estimate: uncompressed image memory usage is typically 3-4x file size
     // for compressed formats like JPEG, and 1-1.5x for uncompressed formats like BMP
@@ -41,7 +41,7 @@ fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
         None => 3.0,
     };
 
-    Ok(file_size_mb * multiplier)
+    Ok(file_size_mib * multiplier)
 }
 
 /// Validates batch memory requirements before processing.
@@ -50,7 +50,7 @@ fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
 /// * `image_files` - List of image file paths to process
 ///
 /// # Returns
-/// * `Ok((total_memory_mb, large_image_count))` - Estimated memory usage and count of large images
+/// * `Ok((total_memory_mib, large_image_count))` - Estimated memory usage and count of large images
 /// * `Err(CompressionError)` - If memory limits would be exceeded
 fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)> {
     // Check file count limit
@@ -61,25 +61,25 @@ fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)>
         ));
     }
 
-    let mut total_memory_mb = 0.0;
+    let mut total_memory_mib = 0.0;
     let mut large_image_count = 0;
 
     // Estimate memory usage for each file
     for file_path in image_files {
         let memory_estimate = estimate_image_memory_usage(file_path)?;
-        total_memory_mb += memory_estimate;
+        total_memory_mib += memory_estimate;
 
-        if memory_estimate > LARGE_IMAGE_THRESHOLD_MB {
+        if memory_estimate > LARGE_IMAGE_THRESHOLD_MIB {
             large_image_count += 1;
         }
     }
 
     // Check total memory limit
-    let total_memory_mb_u64 = total_memory_mb.ceil() as u64;
-    if total_memory_mb_u64 > MAX_BATCH_MEMORY_MB {
+    let total_memory_mib_u64 = total_memory_mib.ceil() as u64;
+    if total_memory_mib_u64 > MAX_BATCH_MEMORY_MIB {
         return Err(CompressionError::BatchMemoryLimitExceeded(
-            total_memory_mb_u64,
-            MAX_BATCH_MEMORY_MB,
+            total_memory_mib_u64,
+            MAX_BATCH_MEMORY_MIB,
         ));
     }
 
@@ -89,17 +89,17 @@ fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)>
         RefreshKind::new().with_memory(MemoryRefreshKind::new())
     );
     sys.refresh_memory();
-    let available_mem_mb = sys.available_memory() / 1024; // KiB -> MiB
-    let required_with_buffer = total_memory_mb_u64 + MIN_AVAILABLE_MEMORY_MB;
-    if required_with_buffer > available_mem_mb {
+    let available_mem_mib = sys.available_memory() / 1024; // KiB -> MiB
+    let required_with_buffer = total_memory_mib_u64 + MIN_AVAILABLE_MEMORY_MIB;
+    if required_with_buffer > available_mem_mib {
         // Report how much is actually available (not subtracting buffer for transparency)
         return Err(CompressionError::InsufficientMemory(
-            total_memory_mb_u64,
-            available_mem_mb,
+            total_memory_mib_u64,
+            available_mem_mib,
         ));
     }
 
-    Ok((total_memory_mb, large_image_count))
+    Ok((total_memory_mib, large_image_count))
 }
 
 pub fn batch_compress_images(
@@ -127,14 +127,14 @@ pub fn batch_compress_images(
 
     // Security: Validate batch memory requirements before processing
     println!("🔍 Validating batch memory requirements...");
-    let (estimated_memory_mb, large_image_count) = validate_batch_memory_limits(&image_files)?;
+    let (estimated_memory_mib, large_image_count) = validate_batch_memory_limits(&image_files)?;
 
     println!("📊 Batch validation complete:");
     println!("  📁 Total files: {}", total_files);
-    println!("  💾 Estimated memory usage: {:.1} MB", estimated_memory_mb);
+    println!("  💾 Estimated memory usage: {:.1} MiB", estimated_memory_mib);
     println!(
-        "  📏 Large images (>{}MB): {}",
-        LARGE_IMAGE_THRESHOLD_MB, large_image_count
+        "  📏 Large images (>{}MiB): {}",
+        LARGE_IMAGE_THRESHOLD_MIB, large_image_count
     );
 
     // Adjust parallelism based on large image count to prevent memory exhaustion
@@ -628,7 +628,7 @@ mod tests {
         let files = vec![large_file];
         let result = validate_batch_memory_limits(&files).unwrap();
 
-        assert!(result.0 > LARGE_IMAGE_THRESHOLD_MB); // Memory estimate should be above threshold
+        assert!(result.0 > LARGE_IMAGE_THRESHOLD_MIB); // Memory estimate should be above threshold
         assert_eq!(result.1, 1); // Should count as 1 large image
     }
 }
