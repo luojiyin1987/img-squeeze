@@ -218,6 +218,7 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "jpeg" | "jpg" => Ok(ImageFormat::Jpeg),
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
+            "avif" => Ok(ImageFormat::Avif),
             _ => Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else if let Some(ext) = output.extension().and_then(|ext| ext.to_str()) {
@@ -225,6 +226,7 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
+            "avif" => Ok(ImageFormat::Avif),
             _ => Ok(ImageFormat::Jpeg),
         }
     } else {
@@ -297,6 +299,9 @@ pub fn save_image(
         ImageFormat::WebP => {
             img.save_with_format(output, image::ImageFormat::WebP)?;
         }
+        ImageFormat::Avif => {
+            img.save_with_format(output, image::ImageFormat::Avif)?;
+        }
         _ => {
             return Err(CompressionError::UnsupportedFormat(format!("{:?}", format)));
         }
@@ -352,6 +357,10 @@ mod tests {
         let format = determine_output_format(path, &None).unwrap();
         assert_eq!(format, ImageFormat::WebP);
 
+        let path = Path::new("test.avif");
+        let format = determine_output_format(path, &None).unwrap();
+        assert_eq!(format, ImageFormat::Avif);
+
         let path = Path::new("test.unknown");
         let format = determine_output_format(path, &None).unwrap();
         assert_eq!(format, ImageFormat::Jpeg);
@@ -362,6 +371,10 @@ mod tests {
         let path = Path::new("test.jpg");
         let format = determine_output_format(path, &Some("png".to_string())).unwrap();
         assert_eq!(format, ImageFormat::Png);
+
+        let path = Path::new("test.png");
+        let format = determine_output_format(path, &Some("avif".to_string())).unwrap();
+        assert_eq!(format, ImageFormat::Avif);
     }
 
     #[test]

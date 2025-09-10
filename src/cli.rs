@@ -31,7 +31,7 @@ pub enum Commands {
         #[arg(short = 'H', long, help = "Maximum height in pixels")]
         height: Option<u32>,
 
-        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp)")]
+        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp, avif)")]
         format: Option<String>,
 
         #[arg(short = 'j', long, help = "Number of parallel threads (default: auto)")]
@@ -55,7 +55,7 @@ pub enum Commands {
         #[arg(short = 'H', long, help = "Maximum height in pixels")]
         height: Option<u32>,
 
-        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp)")]
+        #[arg(short = 'f', long, help = "Output format (jpeg, png, webp, avif)")]
         format: Option<String>,
 
         #[arg(short = 'j', long, help = "Number of parallel threads (default: auto)")]

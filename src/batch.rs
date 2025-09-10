@@ -335,7 +335,7 @@ pub fn is_image_file(path: &Path) -> bool {
         .map(|ext| {
             matches!(
                 ext.to_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif"
+                "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "gif" | "avif"
             )
         })
         .unwrap_or(false)
@@ -411,6 +411,9 @@ mod tests {
         assert!(is_image_file(path));
 
         let path = Path::new("test.gif");
+        assert!(is_image_file(path));
+
+        let path = Path::new("test.avif");
         assert!(is_image_file(path));
 
         let path = Path::new("test.txt");
