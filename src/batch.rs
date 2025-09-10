@@ -370,6 +370,7 @@ pub fn generate_output_path(
             "jpeg" | "jpg" => "jpg",
             "png" => "png",
             "webp" => "webp",
+            "avif" => "avif",
             _ => return Err(CompressionError::UnsupportedFormat(fmt.clone())),
         }
     } else {
@@ -468,6 +469,16 @@ mod tests {
         let result =
             generate_output_path(input_path, output_dir, &Some("webp".to_string())).unwrap();
         assert_eq!(result, PathBuf::from("/tmp/output/test.webp"));
+    }
+
+    #[test]
+    fn test_generate_output_path_avif_format() {
+        let input_path = Path::new("test.jpg");
+        let output_dir = Path::new("/tmp/output");
+
+        let result =
+            generate_output_path(input_path, output_dir, &Some("avif".to_string())).unwrap();
+        assert_eq!(result, PathBuf::from("/tmp/output/test.avif"));
     }
 
     #[test]
