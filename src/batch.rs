@@ -36,7 +36,7 @@ fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
             "webp" => 3.5,         // WebP has good compression
             "bmp" | "tiff" => 1.2, // Usually uncompressed or lightly compressed
             "gif" => 2.0,          // GIF has moderate compression
-            "avif" | "heic" | "heif" => 4.0, // Modern efficient formats
+            "avif" | "heic" | "heif" | "jxl" => 4.0, // Modern efficient formats
             _ => 3.0,              // Default conservative estimate
         },
         None => 3.0,

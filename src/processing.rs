@@ -113,6 +113,23 @@ pub fn process_image_pipeline(
 pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
     validate_file_exists(input_path)?;
 
+    // Check for unsupported input formats and provide helpful guidance
+    if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
+        match ext.to_lowercase().as_str() {
+            "heic" | "heif" => {
+                return Err(CompressionError::UnsupportedFormat(
+                    "HEIC/HEIF format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
+                ));
+            }
+            "jxl" => {
+                return Err(CompressionError::UnsupportedFormat(
+                    "JPEG XL format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
+                ));
+            }
+            _ => {} // Continue with supported formats
+        }
+    }
+
     // Security: Validate path to prevent directory traversal attacks
     let canonical_path = input_path
         .canonicalize()

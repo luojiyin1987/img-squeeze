@@ -22,7 +22,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
-image = { version = "0.25", features = ["jpeg", "png", "webp", "avif"] }
+image = { version = "0.25", features = ["jpeg", "png", "webp", "avif", "rayon"] }
 oxipng = { version = "9.1", features = ["parallel", "zopfli"], default-features = false }
 anyhow = "1.0"
 thiserror = "1.0"
