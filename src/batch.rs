@@ -36,6 +36,7 @@ fn estimate_image_memory_usage(file_path: &Path) -> Result<f64> {
             "webp" => 3.5,         // WebP has good compression
             "bmp" | "tiff" => 1.2, // Usually uncompressed or lightly compressed
             "gif" => 2.0,          // GIF has moderate compression
+            "avif" | "heic" | "heif" => 4.0, // Modern efficient formats
             _ => 3.0,              // Default conservative estimate
         },
         None => 3.0,
@@ -84,12 +85,12 @@ fn validate_batch_memory_limits(image_files: &[PathBuf]) -> Result<(f64, usize)>
     }
 
     // Check against actual available memory (host/container)
-    // Uses sysinfo's available_memory (KiB). Convert to MiB.
+    // sysinfo 0.30+ returns bytes. Convert to MiB.
     let mut sys = System::new_with_specifics(
         RefreshKind::new().with_memory(MemoryRefreshKind::new())
     );
     sys.refresh_memory();
-    let available_mem_mib = sys.available_memory() / 1024; // KiB -> MiB
+    let available_mem_mib = sys.available_memory() / (1024 * 1024); // bytes -> MiB
     let required_with_buffer = total_memory_mib_u64 + MIN_AVAILABLE_MEMORY_MIB;
     if required_with_buffer > available_mem_mib {
         // Report how much is actually available (not subtracting buffer for transparency)
@@ -137,12 +138,21 @@ pub fn batch_compress_images(
         LARGE_IMAGE_THRESHOLD_MIB, large_image_count
     );
 
-    // Adjust parallelism based on large image count to prevent memory exhaustion
-    let max_parallelism = if large_image_count > MAX_CONCURRENT_LARGE_IMAGES {
+    // Adjust parallelism based on large image count and available memory
+    let baseline = rayon::current_num_threads().min(total_files);
+    let large_cap = if large_image_count >= MAX_CONCURRENT_LARGE_IMAGES {
         MAX_CONCURRENT_LARGE_IMAGES
     } else {
-        rayon::current_num_threads().min(total_files)
+        baseline
     };
+    // Derive an upper bound from available memory vs. avg per-file estimate
+    let mut sys = System::new_with_specifics(RefreshKind::new().with_memory(MemoryRefreshKind::new()));
+    sys.refresh_memory();
+    let available_mem_mib = sys.available_memory() / (1024 * 1024);
+    let avg_per_file_mib = ((estimated_memory_mib / total_files as f64).ceil() as u64).max(1);
+    let mem_cap = ((available_mem_mib.saturating_sub(MIN_AVAILABLE_MEMORY_MIB)) / avg_per_file_mib)
+        .clamp(1, baseline as u64) as usize;
+    let max_parallelism = large_cap.min(mem_cap);
 
     println!(
         "⚙️  Using {} parallel threads for processing",
@@ -178,6 +188,7 @@ pub fn batch_compress_images(
                     chunk
                         .into_par_iter()
                         .map(|input_path| {
+                            let progress = main_progress.clone();
                             let processed_count = processed_count.clone();
                             let total_size_before = total_size_before.clone();
                             let total_size_after = total_size_after.clone();
@@ -187,10 +198,12 @@ pub fn batch_compress_images(
                                     total_size_before.fetch_add(before_size, Ordering::Relaxed);
                                     total_size_after.fetch_add(after_size, Ordering::Relaxed);
                                     processed_count.fetch_add(1, Ordering::Relaxed);
+                                    progress.inc(1);
                                     Ok(())
                                 }
                                 Err(e) => {
                                     eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                                    progress.inc(1);
                                     Err(e)
                                 }
                             }
@@ -203,6 +216,7 @@ pub fn batch_compress_images(
             image_files
                 .into_par_iter()
                 .map(|input_path| {
+                    let progress = main_progress.clone();
                     let processed_count = processed_count.clone();
                     let total_size_before = total_size_before.clone();
                     let total_size_after = total_size_after.clone();
@@ -212,10 +226,12 @@ pub fn batch_compress_images(
                             total_size_before.fetch_add(before_size, Ordering::Relaxed);
                             total_size_after.fetch_add(after_size, Ordering::Relaxed);
                             processed_count.fetch_add(1, Ordering::Relaxed);
+                            progress.inc(1);
                             Ok(())
                         }
                         Err(e) => {
                             eprintln!("❌ Failed to process {:?}: {}", input_path, e);
+                            progress.inc(1);
                             Err(e)
                         }
                     }

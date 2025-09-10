@@ -13,7 +13,7 @@ pub const DEFAULT_WALRUS_AGGREGATOR: &str = "https://aggregator.walrus-testnet.w
 pub const DEFAULT_WALRUS_PUBLISHER: &str = "https://publisher.walrus-testnet.walrus.space";
 
 pub const MAX_IMAGE_DIMENSION: u32 = 16384; // Maximum allowed image dimension
-pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB maximum file size
+pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MiB maximum file size
 
 // Batch processing memory limits (using MiB for consistency with sysinfo)
 pub const MAX_BATCH_MEMORY_MIB: u64 = 2048; // 2 GiB maximum total batch memory usage
