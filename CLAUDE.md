@@ -6,63 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **img-squeeze** is a Rust-based image compression tool that reduces file sizes while maintaining quality. It supports multiple image formats (JPEG, PNG, WebP, BMP, TIFF, GIF) with features like parallel processing, batch compression, and advanced PNG optimization using oxipng.
 
-## Claude 工作流
-
-本项目集成了简化的 Claude 工作流系统，用于自动化代码质量检查和构建流程。
-
-### 🚀 工作流特性
-
-- **简单实用**: 轻量级配置，易于维护和扩展
-- **Rust 优化**: 针对 Rust 项目的专用工具链
-- **自动化**: 一键执行完整的开发和测试流程
-- **错误处理**: 遇到错误自动停止，确保质量
-
-### 📋 使用方法
-
-#### 运行完整工作流
-```bash
-# 执行完整的 Claude 工作流
-./claude-workflow.sh
-```
-
-#### 手动执行各个阶段
-```bash
-# 代码检查
-cargo check
-cargo clippy
-cargo fmt --check
-
-# 运行测试
-cargo test --lib
-
-# 构建项目
-cargo build --release
-
-# 性能验证
-./target/release/img-squeeze --help
-./target/release/img-squeeze --version
-```
-
-### 🔧 工作流文件
-
-- **.claude-workflow.yml**: YAML 工作流配置文件
-- **claude-workflow.sh**: Bash 执行脚本
-
-### 📊 工作流阶段
-
-1. **代码检查** - 使用 cargo check、clippy、fmt 检查代码质量
-2. **运行测试** - 执行 35 个单元测试确保功能正确
-3. **构建项目** - 构建优化版本用于生产环境
-4. **性能验证** - 验证构建结果和基本功能
-
-### 🎯 质量标准
-
-- 代码编译无错误
-- 通过所有 clippy 检查
-- 代码格式符合 Rust 标准
-- 所有单元测试通过
-- 构建的二进制文件正常工作
-
 ## Development Commands
 
 ### Building and Running
