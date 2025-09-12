@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "img-squeeze",
     about = "A Rust-based image compression tool",
-    version = "0.1.0"
+    version = "0.1.1"
 )]
 pub struct Args {
     #[command(subcommand)]
