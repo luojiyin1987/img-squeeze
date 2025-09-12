@@ -2,7 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://rustlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Crates.io](https://img.shields.io/badge/crates.io-v0.1.0-blue.svg)](https://crates.io/)
+[![Crates.io](https://img.shields.io/badge/crates.io-v0.1.1-blue.svg)](https://crates.io/)
 [![Parallel](https://img.shields.io/badge/parallel-rayon-green.svg)](https://github.com/rayon-rs/rayon)
 
 一个用 Rust 编写的快速、高效的图片压缩工具，支持多线程并行处理、批量压缩、多种图片格式和去中心化存储。

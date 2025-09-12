@@ -1,6 +1,6 @@
 [package]
 name = "img-squeeze"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["luojiyin <luojiyin@hotmail.com>"]
 description = "A fast and efficient image compression tool with Walrus storage support"
