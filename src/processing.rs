@@ -146,7 +146,7 @@ pub fn process_image_pipeline(
     resize_image(&mut img, options);
 
     // Process and save
-    let compressed_size = process_and_save_image(&img, output_path, options)?;
+    let compressed_size = process_and_save_image(&img, output_path, options, input_path)?;
 
     Ok((original_size, compressed_size))
 }
@@ -237,10 +237,11 @@ pub fn process_and_save_image(
     img: &DynamicImage,
     output_path: &Path,
     options: &CompressionOptions,
+    input_path: &Path,
 ) -> Result<u64> {
     let output_buf = output_path.to_path_buf();
     let output_format = determine_output_format(output_path, &options.format)?;
-    save_image(img, &output_buf, output_format, options)?;
+    save_image(img, &output_buf, output_format, options, input_path)?;
 
     let compressed_size = fs::metadata(output_path)?.len();
     Ok(compressed_size)
@@ -272,7 +273,7 @@ pub fn compress_image(input: PathBuf, output: PathBuf, options: CompressionOptio
     resize_image(&mut img, &options);
 
     pb.set_message("Saving compressed image...");
-    let compressed_size = process_and_save_image(&img, &output, &options)?;
+    let compressed_size = process_and_save_image(&img, &output, &options, &input)?;
     pb.finish_with_message("✅ Compression complete");
     let compression_ratio =
         ((original_size as f64 - compressed_size as f64) / original_size as f64) * 100.0;
@@ -356,6 +357,7 @@ pub fn save_image(
     output: &PathBuf,
     format: ImageFormat,
     options: &CompressionOptions,
+    input_path: &Path,
 ) -> Result<()> {
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)
@@ -364,7 +366,35 @@ pub fn save_image(
 
     match format {
         ImageFormat::Jpeg => {
-            img.save_with_format(output, image::ImageFormat::Jpeg)?;
+            // 智能 JPEG 压缩：避免重新压缩导致文件变大
+            use image::codecs::jpeg::JpegEncoder;
+
+            // 如果输入已经是 JPEG，使用更保守的质量设置
+            let actual_quality = if input_path.extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_lowercase() == "jpg" || s.to_lowercase() == "jpeg")
+                .unwrap_or(false) {
+                // 对于已经是 JPEG 的文件，使用更保守的质量设置
+                // 只有在质量明显低于原始质量时才重新压缩
+                std::cmp::min(options.quality, 75)
+            } else {
+                options.quality
+            };
+
+            let mut file = std::fs::File::create(output)?;
+            let mut encoder = JpegEncoder::new_with_quality(&mut file, actual_quality);
+            encoder.encode_image(img)?;
+
+            // 如果输出文件比输入大，发出警告
+            if let Ok(output_size) = std::fs::metadata(output).map(|m| m.len()) {
+                if let Ok(input_size) = std::fs::metadata(input_path).map(|m| m.len()) {
+                    if output_size > input_size {
+                        eprintln!("⚠️  Warning: Output file ({}) is larger than input ({})",
+                                 output_size, input_size);
+                        eprintln!("💡 Tip: Try lower quality setting or avoid re-compressing JPEG files");
+                    }
+                }
+            }
         }
         ImageFormat::Png => {
             // 使用 oxipng 进行 PNG 优化
