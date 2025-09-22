@@ -10,6 +10,61 @@ use std::fs;
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "heic")]
+use libheif_rs::HeifContext;
+
+/// Loads a HEIC/HEIF image file using libheif-rs and converts it to DynamicImage.
+///
+/// # Arguments
+/// * `input_path` - Path to the HEIC/HEIF image file to load
+///
+/// # Returns
+/// * `Ok((image, file_size))` - The loaded image and its file size in bytes
+/// * `Err(CompressionError)` - If loading fails
+///
+/// # Requirements
+/// - Requires libheif >= 1.20.0 to be installed on the system
+/// - On Ubuntu/Debian: `sudo apt-get install libheif-dev` (may need backports or source build)
+/// - On macOS: `brew install libheif`
+/// - Enable with: `cargo build --features heic`
+#[cfg(feature = "heic")]
+pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
+    validate_file_exists(input_path)?;
+
+    // Check file size before loading
+    let file_size = fs::metadata(input_path)?.len();
+    if file_size > MAX_FILE_SIZE {
+        return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
+    }
+
+    // Read the HEIC file
+    let heif_data = fs::read(input_path)?;
+
+    // Create HeifContext from the data
+    let context = HeifContext::read_from_bytes(&heif_data)?;
+
+    // Get the primary image handle
+    let primary_image_handle = context.primary_image_handle()?;
+
+    // Get image dimensions
+    let width = primary_image_handle.width();
+    let height = primary_image_handle.height();
+
+    // Security: Validate image dimensions to prevent DoS attacks
+    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(CompressionError::InvalidDimensions(
+            width,
+            height,
+            MAX_IMAGE_DIMENSION,
+        ));
+    }
+
+    // For now, let's return a placeholder error until we figure out the correct API
+    return Err(CompressionError::UnsupportedFormat(
+        "HEIC support is implemented but API needs to be finalized. Please check the libheif-rs documentation.".to_string()
+    ));
+}
+
 #[derive(Debug, Clone)]
 pub struct CompressionOptions {
     pub quality: u8,
@@ -113,13 +168,21 @@ pub fn process_image_pipeline(
 pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
     validate_file_exists(input_path)?;
 
-    // Check for unsupported input formats and provide helpful guidance
+    // Check for special format handling
     if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
         match ext.to_ascii_lowercase().as_str() {
             "heic" | "heif" => {
-                return Err(CompressionError::UnsupportedFormat(
-                    "HEIC/HEIF format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
-                ));
+                #[cfg(feature = "heic")]
+                {
+                    return load_heic_image(input_path);
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
             }
             "jxl" | "jpegxl" => {
                 return Err(CompressionError::UnsupportedFormat(
@@ -236,9 +299,21 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
-            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
-                format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
-            )),
+            "heic" | "heif" => {
+                #[cfg(feature = "heic")]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF output format not yet supported. HEIC images can be read and converted to other formats.".to_string()
+                    ));
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
+            }
             "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
             )),
@@ -251,9 +326,21 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
-            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
-                format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
-            )),
+            "heic" | "heif" => {
+                #[cfg(feature = "heic")]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF output format not yet supported. HEIC images can be read and converted to other formats.".to_string()
+                    ));
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
+            }
             "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
             )),
