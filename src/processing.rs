@@ -59,10 +59,91 @@ pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
         ));
     }
 
-    // For now, let's return a placeholder error until we figure out the correct API
-    return Err(CompressionError::UnsupportedFormat(
-        "HEIC support is implemented but API needs to be finalized. Please check the libheif-rs documentation.".to_string()
-    ));
+    // Create a LibHeif instance for decoding
+    let lib_heif = libheif_rs::LibHeif::new();
+
+    // Decode the HEIC image to RGB format for compatibility with image crate
+    let decoded_image = lib_heif.decode(
+        &primary_image_handle,
+        libheif_rs::ColorSpace::Rgb(libheif_rs::RgbChroma::C444),
+        None,
+    )?;
+
+    // Get the RGB planes from the decoded image
+    let planes = decoded_image.planes();
+
+    // Extract the individual color channels
+    let r_plane = planes.r.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing red channel in decoded HEIC image".to_string()
+    ))?;
+    let g_plane = planes.g.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing green channel in decoded HEIC image".to_string()
+    ))?;
+    let b_plane = planes.b.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing blue channel in decoded HEIC image".to_string()
+    ))?;
+
+    // Check if there's an alpha channel
+    let has_alpha = planes.a.is_some();
+    let width = r_plane.width;
+    let height = r_plane.height;
+
+    // Create an ImageBuffer based on the color format
+    let dynamic_image = if has_alpha {
+        // RGBA format
+        if let Some(a_plane) = planes.a {
+            let mut rgba_data = Vec::with_capacity((width * height * 4) as usize);
+
+            // Interleave the RGBA channels
+            for y in 0..height {
+                for x in 0..width {
+                    let r_idx = (y as usize * r_plane.stride + x as usize) as usize;
+                    let g_idx = (y as usize * g_plane.stride + x as usize) as usize;
+                    let b_idx = (y as usize * b_plane.stride + x as usize) as usize;
+                    let a_idx = (y as usize * a_plane.stride + x as usize) as usize;
+
+                    rgba_data.push(r_plane.data[r_idx]);
+                    rgba_data.push(g_plane.data[g_idx]);
+                    rgba_data.push(b_plane.data[b_idx]);
+                    rgba_data.push(a_plane.data[a_idx]);
+                }
+            }
+
+            let rgba_image = image::RgbaImage::from_raw(width, height, rgba_data)
+                .ok_or_else(|| CompressionError::UnsupportedFormat(
+                    "Failed to create RGBA image from HEIC data".to_string()
+                ))?;
+            DynamicImage::ImageRgba8(rgba_image)
+        } else {
+            return Err(CompressionError::UnsupportedFormat(
+                "Inconsistent alpha channel information in HEIC image".to_string()
+            ));
+        }
+    } else {
+        // RGB format
+        let mut rgb_data = Vec::with_capacity((width * height * 3) as usize);
+
+        // Interleave the RGB channels
+        for y in 0..height {
+            for x in 0..width {
+                let r_idx = (y as usize * r_plane.stride + x as usize) as usize;
+                let g_idx = (y as usize * g_plane.stride + x as usize) as usize;
+                let b_idx = (y as usize * b_plane.stride + x as usize) as usize;
+
+                rgb_data.push(r_plane.data[r_idx]);
+                rgb_data.push(g_plane.data[g_idx]);
+                rgb_data.push(b_plane.data[b_idx]);
+            }
+        }
+
+        let rgb_image = image::RgbImage::from_raw(width, height, rgb_data)
+            .ok_or_else(|| CompressionError::UnsupportedFormat(
+                "Failed to create RGB image from HEIC data".to_string()
+            ))?;
+        DynamicImage::ImageRgb8(rgb_image)
+    };
+
+    Ok((dynamic_image, file_size))
 }
 
 #[derive(Debug, Clone)]
@@ -554,8 +635,16 @@ mod tests {
             Err(CompressionError::UnsupportedFormat(_))
         ));
         if let Err(CompressionError::UnsupportedFormat(msg)) = result {
-            assert!(msg.contains("not yet supported"));
-            assert!(msg.contains("AVIF"));
+            #[cfg(feature = "heic")]
+            {
+                assert!(msg.contains("output format not yet supported"));
+                assert!(msg.contains("can be read and converted"));
+            }
+            #[cfg(not(feature = "heic"))]
+            {
+                assert!(msg.contains("requires the 'heic' feature"));
+                assert!(msg.contains("libheif >= 1.20.0"));
+            }
         }
 
         // Test JPEG XL recognition with helpful error message  
