@@ -19,6 +19,7 @@
 - 🎨 **友好界面** - 清晰的进度提示和错误信息
 - 🚀 **PNG 优化** - 使用 oxipng 库进行高级 PNG 压缩优化
 - 🌐 **Walrus 上传** - 支持上传到 Walrus 去中心化存储网络
+- 📈 **智能压缩** - 针对不同格式优化压缩策略，避免文件变大
 
 ## 📦 安装
 
@@ -82,6 +83,10 @@ img-squeeze compress input.jpg output.jpg -w 800 -H 600 # 同时设置宽度和�
 img-squeeze compress input.png output.jpg -f jpeg
 img-squeeze compress input.jpg output.webp -f webp
 
+# AVIF 格式压缩（推荐，压缩效果最好）
+img-squeeze compress input.jpg output.avif -f avif -q 50
+img-squeeze compress input.png output.avif -f avif -q 60
+
 # HEIC 格式压缩（需要启用 heic feature）
 img-squeeze compress input.heic output.jpg -q 85
 img-squeeze compress input.heic output.webp -f webp
@@ -107,6 +112,9 @@ img-squeeze batch ./images ./compressed -q 85 -w 1200 -H 800
 
 # 批量压缩 + 格式转换
 img-squeeze batch ./images ./webp_output -f webp
+
+# 批量压缩 + AVIF 格式（推荐，压缩效果最好）
+img-squeeze batch ./images ./avif_output -f avif -q 50
 
 # 使用通配符批量处理
 img-squeeze batch "*.jpg" ./compressed
@@ -210,6 +218,59 @@ img-squeeze info image.jpg
   ⏱️  Total time: 45.2s
   ⚡ Average speed: 3.32 files/second
 ```
+
+## 🎯 格式压缩建议
+
+根据实际测试结果，不同格式的压缩效果差异很大：
+
+### 📊 压缩效果排名
+
+#### 🥇 **AVIF 格式** - 最佳压缩效果
+- **压缩率**: 50-85%
+- **适用场景**: 追求最大压缩比，现代浏览器和设备
+- **推荐质量**: 40-60
+- **优势**: 现代高效的压缩算法，文件大小显著减少
+- **缺点**: 较老的设备可能不支持
+
+#### 🥈 **JPEG 格式** - 平衡选择
+- **压缩率**: 2-25%
+- **适用场景**: 需要广泛兼容性
+- **推荐质量**: 40-50（避免重新压缩已压缩的JPG）
+- **优势**: 所有设备都支持，通用性最好
+- **缺点**: 压缩率相对较低
+
+#### 🥉 **WebP 格式** - 需要修复
+- **当前状态**: 实现有待优化
+- **潜力**: 理论上应该有较好压缩效果
+- **建议**: 暂时不推荐使用，等待版本更新
+
+#### ❌ **PNG 格式** - 不适合压缩已压缩图片
+- **压缩效果**: 文件通常变大（8-10倍）
+- **原因**: PNG是无损格式，用于压缩已压缩JPG会增大文件
+- **适用场景**: 仅适用于从高质量源（如RAW）转换
+
+### 💡 实用建议
+
+```bash
+# 追求最大压缩（推荐）
+img-squeeze compress input.jpg output.avif -f avif -q 50
+
+# 平衡压缩和兼容性
+img-squeeze compress input.jpg output.jpg -q 45
+
+# 避免重新压缩已压缩的JPG
+img-squeeze compress original_photo.jpg output.jpg -q 80
+
+# 从PNG等无损格式转换到JPG
+img-squeeze compress screenshot.png output.jpg -f jpg -q 85
+```
+
+### ⚠️ 注意事项
+
+1. **避免链式压缩**: 不要重复压缩已压缩的文件
+2. **质量设置**: 对于已压缩的JPG，使用较低质量（40-60）
+3. **格式选择**: 根据目标平台支持的格式选择
+4. **测试验证**: 重要文件压缩前先在小样本测试
 
 ## 📖 命令详解
 
