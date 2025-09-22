@@ -9,7 +9,7 @@
 
 ## ✨ 特性
 
-- 🖼️ **多格式支持** - 支持 JPEG、PNG、WebP、BMP、TIFF、GIF 格式
+- 🖼️ **多格式支持** - 支持 JPEG、PNG、WebP、BMP、TIFF、GIF、HEIC 格式
 - 🎯 **质量调整** - 可自定义压缩质量 (1-100)
 - 📏 **尺寸调整** - 可调整图片宽度和高度
 - 🚀 **多线程处理** - 基于 Rayon 的高性能并行处理
@@ -82,6 +82,10 @@ img-squeeze compress input.jpg output.jpg -w 800 -H 600 # 同时设置宽度和�
 img-squeeze compress input.png output.jpg -f jpeg
 img-squeeze compress input.jpg output.webp -f webp
 
+# HEIC 格式压缩（需要启用 heic feature）
+img-squeeze compress input.heic output.jpg -q 85
+img-squeeze compress input.heic output.webp -f webp
+
 # 多线程 + 高级选项组合
 img-squeeze compress input.jpg output.jpg -j 6 -q 85 -w 1200 -H 800 -f webp
 ```
@@ -107,6 +111,7 @@ img-squeeze batch ./images ./webp_output -f webp
 # 使用通配符批量处理
 img-squeeze batch "*.jpg" ./compressed
 img-squeeze batch "./photos/*.png" ./compressed
+img-squeeze batch "*.heic" ./compressed
 ```
 
 ### Walrus 上传（新增功能）
@@ -253,6 +258,60 @@ img-squeeze info image.jpg
 - Rust 1.70+
 - Cargo
 
+#### HEIC 格式支持（可选）
+
+要启用 HEIC 格式支持，需要安装系统依赖库：
+
+**Ubuntu/Debian:**
+
+```bash
+# 安装构建工具
+sudo apt-get update
+sudo apt-get install -y build-essential cmake pkg-config
+
+# 安装 libheif 依赖
+sudo apt-get install -y libde265-dev libx265-dev libaom-dev libdav1d-dev
+
+# 如果系统版本较旧，需要从源码构建 libheif >= 1.20.0
+git clone https://github.com/strukturag/libheif.git
+cd libheif
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+**macOS:**
+
+```bash
+# 使用 Homebrew 安装
+brew install libheif
+```
+
+**从源码构建（推荐）：**
+
+```bash
+# 克隆并构建 libheif 1.21.0
+git clone --branch v1.21.0 https://github.com/strukturag/libheif.git
+cd libheif
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+**启用 HEIC 支持构建：**
+
+```bash
+# 构建 HEIC 支持版本
+cargo build --release --features heic
+
+# 验证 HEIC 支持
+./target/release/img-squeeze compress input.heic output.jpg
+```
+
 ### 构建项目
 
 ```bash
@@ -261,6 +320,9 @@ cargo build
 
 # 发布构建
 cargo build --release
+
+# 发布构建（启用 HEIC 支持）
+cargo build --release --features heic
 
 # 运行测试
 cargo test
