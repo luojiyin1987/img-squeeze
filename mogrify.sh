@@ -192,13 +192,13 @@ echo "📊 压缩后大小: $(echo "$compressed_size" | eval $NUMFMT_CMD)"
 if [ $original_size -gt 0 ]; then
     saved_size=$((original_size - compressed_size))
     if [ $saved_size -gt 0 ]; then
-        saved_ratio=$(echo "scale=2; $saved_size * 100 / $original_size" | bc)
+        saved_ratio=$(echo "scale=2; $saved_size * 100 / $original_size" | bc -l)
         echo "💰 节省空间: $(echo "$saved_size" | eval $NUMFMT_CMD)"
         echo "📉 压缩率: ${saved_ratio}%"
     else
         increased_size=$((compressed_size - original_size))
         echo "⚠️  文件变大: $(echo "$increased_size" | eval $NUMFMT_CMD)"
-        echo "📈 变化率: $(echo "scale=2; $increased_size * 100 / $original_size" | bc)%"
+        echo "📈 变化率: $(echo "scale=2; $increased_size * 100 / $original_size" | bc -l)%"
     fi
 fi
 

@@ -85,8 +85,39 @@ pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
 
     // Check if there's an alpha channel
     let has_alpha = planes.a.is_some();
-    let width = r_plane.width;
-    let height = r_plane.height;
+
+    // Validate plane dimensions match image dimensions
+    if r_plane.width != width || r_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC image plane dimensions ({}, {}) don't match image dimensions ({}, {})",
+                    r_plane.width, r_plane.height, width, height)
+        ));
+    }
+
+    // Validate other planes have consistent dimensions
+    if let Some(g_plane) = &planes.g {
+        if g_plane.width != width || g_plane.height != height {
+            return Err(CompressionError::UnsupportedFormat(
+                "HEIC image green plane dimensions don't match image dimensions".to_string()
+            ));
+        }
+    }
+
+    if let Some(b_plane) = &planes.b {
+        if b_plane.width != width || b_plane.height != height {
+            return Err(CompressionError::UnsupportedFormat(
+                "HEIC image blue plane dimensions don't match image dimensions".to_string()
+            ));
+        }
+    }
+
+    if let Some(a_plane) = &planes.a {
+        if a_plane.width != width || a_plane.height != height {
+            return Err(CompressionError::UnsupportedFormat(
+                "HEIC image alpha plane dimensions don't match image dimensions".to_string()
+            ));
+        }
+    }
 
     // Create an ImageBuffer based on the color format
     let dynamic_image = if has_alpha {
