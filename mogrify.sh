@@ -26,71 +26,152 @@ if [ ! -d "$SOURCE_DIR" ]; then
     exit 1
 fi
 
+# 目录关系校验
+require_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "❌ 缺少依赖: $1"; exit 1; }; }
+require_cmd realpath
+src_abs=$(realpath "$SOURCE_DIR")
+dst_abs=$(realpath "$TARGET_DIR")
+if [ "$src_abs" = "$dst_abs" ] || [[ "$dst_abs" == "$src_abs/"* ]]; then
+  echo "❌ 错误: 目标目录不可与源目录相同，亦不可嵌套于源目录内"
+  exit 1
+fi
+
 # 创建目标文件夹
 mkdir -p "$TARGET_DIR"
 echo "✅ 目标文件夹已创建: $TARGET_DIR"
 
 # 记录原始大小
-original_size=$(find "$SOURCE_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o -name "*.bmp" -o -name "*.tiff" -o -name "*.webp" \) -exec du -b {} \; | awk '{sum+=$1} END {print sum}')
-echo "📊 原始大小: $(numfmt --to=iec --suffix=B $original_size)"
+# 兼容 macOS 和 Linux 系统
+if command -v numfmt >/dev/null 2>&1; then
+    NUMFMT_CMD="numfmt --to=iec --suffix=B"
+else
+    NUMFMT_CMD="awk '{function human(x) { x[1]/=1024; x[2]/=1048576; x[3]/=1073741824; if (x[1]<1000) {printf \"%.1fK\", x[1]} else if (x[2]<1000) {printf \"%.1fM\", x[2]} else {printf \"%.1fG\", x[3]}} {split($1,x,\"\"); human(x[1])}'"
+fi
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS 系统
+    original_size=$(find "$SOURCE_DIR" -type f \( \
+        -iname "*.jpg"  -o -iname "*.jpeg" -o -iname "*.png"  -o -iname "*.gif"  -o \
+        -iname "*.bmp"  -o -iname "*.tif"  -o -iname "*.tiff" -o -iname "*.webp" -o \
+        -iname "*.heic" -o -iname "*.heif" \
+    \) -exec stat -f %z {} \; | awk '{sum+=$1} END {print sum+0}')
+else
+    # Linux 系统
+    original_size=$(find "$SOURCE_DIR" -type f \( \
+        -iname "*.jpg"  -o -iname "*.jpeg" -o -iname "*.png"  -o -iname "*.gif"  -o \
+        -iname "*.bmp"  -o -iname "*.tif"  -o -iname "*.tiff" -o -iname "*.webp" -o \
+        -iname "*.heic" -o -iname "*.heif" \
+    \) -exec du -b {} \; | awk '{sum+=$1} END {print sum+0}')
+fi
+echo "📊 原始大小: $(echo "$original_size" | eval $NUMFMT_CMD)"
 
 # 统计文件数量
-total_files=$(find "$SOURCE_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o -name "*.bmp" -o -name "*.tiff" -o -name "*.webp" \) | wc -l)
+total_files=$(find "$SOURCE_DIR" -type f \( \
+  -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" -o \
+  -iname "*.bmp" -o -iname "*.tif"  -o -iname "*.tiff" -o -iname "*.webp" -o \
+  -iname "*.heic" -o -iname "*.heif" \
+\) | wc -l)
 echo "📊 处理文件数: $total_files"
 
-# 复制文件到目标文件夹
+# 复制文件到目标文件夹（保留目录层级）
 echo "📋 正在复制文件..."
 start_time=$(date +%s)
-find "$SOURCE_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" -o -name "*.bmp" -o -name "*.tiff" -o -name "*.webp" \) -exec cp {} "$TARGET_DIR/" \;
+
+# 使用 cp --parents 或 install -D 来保留目录层级
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS 使用自定义方法
+    find "$src_abs" -type f \( \
+        -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" -o \
+        -iname "*.bmp" -o -iname "*.tif"  -o -iname "*.tiff" -o -iname "*.webp" -o \
+        -iname "*.heic" -o -iname "*.heif" \
+    \) -exec sh -c '
+        for file do
+            rel_path="${file#"$1"/}"
+            mkdir -p "$2/$(dirname "$rel_path")"
+            cp "$file" "$2/$rel_path"
+        done
+    ' sh {} "$src_abs" "$dst_abs" +
+else
+    # Linux 使用 cp --parents
+    (
+        cd "$src_abs" && find . -type f \( \
+            -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" -o \
+            -iname "*.bmp" -o -iname "*.tif"  -o -iname "*.tiff" -o -iname "*.webp" -o \
+            -iname "*.heic" -o -iname "*.heif" \
+        \) -exec cp --parents -t "$dst_abs" {} +
+    )
+fi
+
 copy_time=$(date +%s)
 echo "✅ 文件复制完成，耗时 $((copy_time - start_time)) 秒"
 
 # 进入目标文件夹
-cd "$TARGET_DIR"
+cd "$dst_abs"
 
 echo "🗜️  开始压缩图片..."
 compress_start_time=$(date +%s)
 
-# 根据文件扩展名分别处理
+# 递归压缩各格式文件
 echo "📸 压缩 JPG/JPEG 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         -interlace Plane \
-         -sampling-factor 4:2:0 \
-         *.jpg *.jpeg 2>/dev/null || true
+find . -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    -interlace Plane \
+    -sampling-factor 4:2:0 \
+    {} + 2>/dev/null || true
 
 echo "🎨 压缩 PNG 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         -depth 8 \
-         *.png 2>/dev/null || true
+find . -type f -iname "*.png" -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    -depth 8 \
+    {} + 2>/dev/null || true
 
 echo "🌐 压缩 WebP 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         *.webp 2>/dev/null || true
+find . -type f -iname "*.webp" -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    {} + 2>/dev/null || true
 
 echo "🎭 压缩 GIF 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         *.gif 2>/dev/null || true
+find . -type f -iname "*.gif" -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    {} + 2>/dev/null || true
 
 echo "🖼️  压缩 BMP 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         *.bmp 2>/dev/null || true
+find . -type f -iname "*.bmp" -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    {} + 2>/dev/null || true
 
-echo "📄 压缩 TIFF 文件..."
-mogrify -resize "${MAX_WIDTH}x${MAX_HEIGHT}" \
-         -quality $QUALITY \
-         -strip \
-         -compress lzw \
-         *.tiff 2>/dev/null || true
+echo "📄 压缩 TIFF/TIF 文件..."
+find . -type f \( -iname "*.tiff" -o -iname "*.tif" \) -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    -compress lzw \
+    {} + 2>/dev/null || true
+
+echo "🍎 压缩 HEIC/HEIF 文件..."
+# HEIC/HEIF 是现代格式，使用更优化的压缩参数
+find . -type f \( -iname "*.heic" -o -iname "*.heif" \) -exec mogrify \
+    -auto-orient \
+    -resize "${MAX_WIDTH}x${MAX_HEIGHT}>" \
+    -quality "$QUALITY" \
+    -strip \
+    {} + 2>/dev/null || true
 
 compress_end_time=$(date +%s)
 echo "✅ 图片压缩完成，耗时 $((compress_end_time - compress_start_time)) 秒"
@@ -98,26 +179,33 @@ echo "✅ 图片压缩完成，耗时 $((compress_end_time - compress_start_time
 cd ..
 
 # 计算压缩后大小
-compressed_size=$(find "$TARGET_DIR" -type f -exec du -b {} \; | awk '{sum+=$1} END {print sum}')
-echo "📊 压缩后大小: $(numfmt --to=iec --suffix=B $compressed_size)"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS 系统
+    compressed_size=$(find "$dst_abs" -type f -exec stat -f %z {} \; | awk '{sum+=$1} END {print sum+0}')
+else
+    # Linux 系统
+    compressed_size=$(find "$dst_abs" -type f -exec du -b {} \; | awk '{sum+=$1} END {print sum+0}')
+fi
+echo "📊 压缩后大小: $(echo "$compressed_size" | eval $NUMFMT_CMD)"
 
 # 计算压缩率
 if [ $original_size -gt 0 ]; then
     saved_size=$((original_size - compressed_size))
     if [ $saved_size -gt 0 ]; then
         saved_ratio=$(echo "scale=2; $saved_size * 100 / $original_size" | bc)
-        echo "💰 节省空间: $(numfmt --to=iec --suffix=B $saved_size)"
+        echo "💰 节省空间: $(echo "$saved_size" | eval $NUMFMT_CMD)"
         echo "📉 压缩率: ${saved_ratio}%"
     else
-        echo "⚠️  文件变大: $(numfmt --to=iec --suffix=B $((compressed_size - original_size)))"
-        echo "📈 变化率: $(echo "scale=2; $((compressed_size - original_size)) * 100 / $original_size" | bc)%"
+        increased_size=$((compressed_size - original_size))
+        echo "⚠️  文件变大: $(echo "$increased_size" | eval $NUMFMT_CMD)"
+        echo "📈 变化率: $(echo "scale=2; $increased_size * 100 / $original_size" | bc)%"
     fi
 fi
 
 total_time=$((compress_end_time - start_time))
 echo "========================================"
 echo "🎉 压缩完成！"
-echo "📁 压缩后的文件保存在: $TARGET_DIR/"
+echo "📁 压缩后的文件保存在: $dst_abs/"
 echo "⏱️  总耗时: $total_time 秒"
 echo "📊 处理文件数: $total_files"
 echo "========================================"
