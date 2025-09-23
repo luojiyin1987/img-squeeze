@@ -1,6 +1,6 @@
 use crate::constants::{
     DEFAULT_QUALITY, LIBDEFLATER_HIGH_LEVEL, LIBDEFLATER_LOW_LEVEL, MAX_FILE_SIZE,
-    MAX_IMAGE_DIMENSION, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
+    MAX_IMAGE_DIMENSION, MAX_JPEG_RECOMPRESS_QUALITY, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
 };
 use crate::error::{CompressionError, Result};
 use image::{DynamicImage, GenericImageView, ImageEncoder, ImageFormat, ImageReader};
@@ -95,26 +95,51 @@ pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
     }
 
     // Validate other planes have consistent dimensions
-    if let Some(g_plane) = &planes.g {
-        if g_plane.width != width || g_plane.height != height {
-            return Err(CompressionError::UnsupportedFormat(
-                "HEIC image green plane dimensions don't match image dimensions".to_string()
-            ));
-        }
+    if g_plane.width != width || g_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            "HEIC image green plane dimensions don't match image dimensions".to_string()
+        ));
     }
 
-    if let Some(b_plane) = &planes.b {
-        if b_plane.width != width || b_plane.height != height {
-            return Err(CompressionError::UnsupportedFormat(
-                "HEIC image blue plane dimensions don't match image dimensions".to_string()
-            ));
-        }
+    if b_plane.width != width || b_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            "HEIC image blue plane dimensions don't match image dimensions".to_string()
+        ));
     }
 
     if let Some(a_plane) = &planes.a {
         if a_plane.width != width || a_plane.height != height {
             return Err(CompressionError::UnsupportedFormat(
                 "HEIC image alpha plane dimensions don't match image dimensions".to_string()
+            ));
+        }
+    }
+
+    // Validate buffer sizes against stride * height to prevent out-of-bounds reads
+    let req_rows = height as usize;
+    let need_r = r_plane.stride.saturating_mul(req_rows);
+    if r_plane.data.len() < need_r {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC R plane too small: {} < {}", r_plane.data.len(), need_r)
+        ));
+    }
+    let need_g = g_plane.stride.saturating_mul(req_rows);
+    if g_plane.data.len() < need_g {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC G plane too small: {} < {}", g_plane.data.len(), need_g)
+        ));
+    }
+    let need_b = b_plane.stride.saturating_mul(req_rows);
+    if b_plane.data.len() < need_b {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC B plane too small: {} < {}", b_plane.data.len(), need_b)
+        ));
+    }
+    if let Some(a_plane) = &planes.a {
+        let need_a = a_plane.stride.saturating_mul(req_rows);
+        if a_plane.data.len() < need_a {
+            return Err(CompressionError::UnsupportedFormat(
+                format!("HEIC A plane too small: {} < {}", a_plane.data.len(), need_a)
             ));
         }
     }
@@ -478,17 +503,17 @@ pub fn save_image(
 
     match format {
         ImageFormat::Jpeg => {
-            // 智能 JPEG 压缩：避免重新压缩导致文件变大
+            // Conservative JPEG compression to prevent generational quality loss
             use image::codecs::jpeg::JpegEncoder;
 
-            // 如果输入已经是 JPEG，使用更保守的质量设置
+            // Conservative JPEG compression to avoid quality loss when re-compressing
             let actual_quality = if input_path.extension()
                 .and_then(|s| s.to_str())
                 .map(|s| s.to_lowercase() == "jpg" || s.to_lowercase() == "jpeg")
                 .unwrap_or(false) {
-                // 对于已经是 JPEG 的文件，使用更保守的质量设置
-                // 只有在质量明显低于原始质量时才重新压缩
-                std::cmp::min(options.quality, 75)
+                // Use conservative quality limit for JPEG re-compression
+                // to prevent generational quality loss
+                std::cmp::min(options.quality, MAX_JPEG_RECOMPRESS_QUALITY)
             } else {
                 options.quality
             };
