@@ -17,6 +17,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cargo clippy` - Run linter for code quality checks
 - `cargo fmt` - Format code according to Rust standards
 
+### Optional Features
+
+- `cargo build --features heic` - Build with HEIC format support
+- `cargo build --release --features heic` - Build optimized release with HEIC support
+
 ### Claude Workflow
 
 - `./claude-workflow.sh` - Run complete workflow with all stages
@@ -30,6 +35,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cargo test --test <test_file>` - Run specific test file (e.g., `cargo test --test integration_tests`)
 - `cargo bench` - Run performance benchmarks
 - `cargo test property_tests` - Run property-based tests
+
+### Test Structure
+
+The project includes comprehensive test coverage:
+- **Unit tests**: Individual module tests in source files
+- **Integration tests**: Full command-line integration tests in `tests/integration_tests.rs`
+- **Property tests**: Property-based testing with proptest in `tests/property_tests.rs`
+- **Test utilities**: Common test setup and mock data in `tests/common.rs`
 
 ## Architecture
 
@@ -51,15 +64,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Directory traversal and glob pattern support
   - Progress tracking and performance statistics
 - `info.rs` - Image analysis and metadata extraction
+- `upload.rs` - Upload command handling with temp file support and URL construction
 - `walrus.rs` - Walrus decentralized storage integration:
   - `WalrusClient` integration for blockchain-based storage
   - `WalrusOptions` for configuring aggregator/publisher URLs and epochs
   - Async upload functionality with proper error handling
+- `constants.rs` - Application constants and configuration limits
 - `error.rs` - Comprehensive error handling with thiserror
 
 ### Key Dependencies
 
-- `image` - Core image processing and format support
+- `image` - Core image processing and format support (JPEG, PNG, WebP, AVIF, HEIC)
 - `oxipng` - Advanced PNG compression with Zopfli optimization
 - `clap` - Command-line argument parsing
 - `rayon` - Parallel processing for batch operations
@@ -68,6 +83,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `walkdir` and `glob` - File system traversal
 - `walrus_rs` - Walrus decentralized storage client library
 - `tokio` - Async runtime for Walrus operations
+- `libheif-rs` - HEIC format support (optional feature)
+- `tempfile` - Temporary file handling for PNG optimization
+- `sysinfo` - System information for memory management
 
 ### Project Layout
 
@@ -79,8 +97,15 @@ img-squeeze/
 │   ├── processing.rs   # Core compression logic
 │   ├── batch.rs         # Batch processing
 │   ├── info.rs          # Image analysis
+│   ├── upload.rs        # Upload command handling
 │   ├── walrus.rs        # Walrus storage integration
+│   ├── constants.rs     # Application constants
 │   └── error.rs         # Error types
+├── tests/
+│   ├── main.rs          # Test runner
+│   ├── integration_tests.rs # Integration tests
+│   ├── property_tests.rs   # Property-based tests
+│   └── common.rs        # Test utilities
 ├── Cargo.toml           # Project configuration
 ├── .claude-workflow.yml # Claude workflow configuration
 ├── claude-workflow.sh   # Claude workflow execution script
@@ -214,6 +239,28 @@ The project uses a centralized error handling approach:
 - User-friendly error messages with context (file paths, operation details)
 - Separate error categories for I/O, image processing, validation, and optimization
 
+### Optional Features
+
+#### HEIC Support
+
+The project includes optional HEIC format support through the `heic` feature:
+
+- **Feature flag**: `--features heic`
+- **Dependency**: `libheif-rs` for HEIC decoding
+- **System requirements**: Requires libheif >= 1.20.0 and system codecs
+- **Build command**: `cargo build --release --features heic`
+- **Usage**: HEIC files can be compressed like any other supported format
+
+**Building with HEIC support:**
+```bash
+# Install system dependencies (Ubuntu/Debian)
+sudo apt-get install build-essential cmake pkg-config
+sudo apt-get install libde265-dev libx265-dev libaom-dev libdav1d-dev
+
+# Build with HEIC support
+cargo build --release --features heic
+```
+
 ### Walrus Storage Integration
 
 The tool integrates with the Walrus decentralized storage network for blockchain-based image storage:
@@ -251,6 +298,13 @@ The tool integrates with the Walrus decentralized storage network for blockchain
 - **Temporary file cleanup**: PNG optimization creates and removes temporary files
 - **Batch processing**: Processes files sequentially to avoid memory exhaustion
 - **Format conversion**: Handles in-memory format conversion before saving
+- **Memory limits**: Configurable limits defined in `constants.rs`:
+  - `MAX_BATCH_MEMORY_MIB`: 2 GiB maximum total batch memory usage
+  - `MAX_BATCH_FILES`: 10,000 maximum files in a batch
+  - `MIN_AVAILABLE_MEMORY_MIB`: 512 MiB minimum memory to keep available
+  - `LARGE_IMAGE_THRESHOLD_MIB`: 50 MiB threshold for large images
+  - `MAX_CONCURRENT_LARGE_IMAGES`: 2 maximum concurrent large image processing
+- **System monitoring**: Uses `sysinfo` crate for memory-aware batch processing
 
 ## License
 
