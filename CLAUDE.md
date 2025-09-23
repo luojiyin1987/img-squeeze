@@ -156,6 +156,7 @@ img-squeeze upload image.jpg -e 20
 
 **Upload Output:**
 The upload command provides comprehensive feedback including:
+
 - Upload progress and status
 - Network endpoints used
 - Blob ID for future reference
@@ -163,7 +164,8 @@ The upload command provides comprehensive feedback including:
 - File size and storage information
 
 Example output:
-```
+
+```plan
 📤 Uploading to Walrus: "image.jpg"
 🔗 Aggregator URL: https://aggregator.walrus-testnet.walrus.space
 🔗 Publisher URL: https://publisher.walrus-testnet.walrus.space
@@ -223,11 +225,13 @@ The tool integrates with the Walrus decentralized storage network for blockchain
 - **Error Handling**: Comprehensive error handling for network and storage failures
 
 **Default Configuration:**
+
 - **Aggregator URL**: `https://aggregator.walrus-testnet.walrus.space`
 - **Publisher URL**: `https://publisher.walrus-testnet.walrus.space`
 - **Epochs**: 10 (configurable)
 
 **Upload Process:**
+
 1. **File Validation** - Check file existence and readability
 2. **Client Creation** - Initialize `WalrusClient` with configured URLs
 3. **Data Reading** - Read file content into memory

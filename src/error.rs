@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+#[cfg(feature = "heic")]
+use libheif_rs::HeifError;
+
 #[derive(Debug, Error)]
 pub enum CompressionError {
     #[error("I/O error: {0}")]
@@ -49,6 +52,10 @@ pub enum CompressionError {
         "Insufficient available memory: estimated batch requires {0}MiB, but only {1}MiB available"
     )]
     InsufficientMemory(u64, u64),
+
+    #[cfg(feature = "heic")]
+    #[error("HEIF processing error: {0}")]
+    HeifError(#[from] HeifError),
 }
 
 pub type Result<T> = std::result::Result<T, CompressionError>;

@@ -1,6 +1,6 @@
 use crate::constants::{
     DEFAULT_QUALITY, LIBDEFLATER_HIGH_LEVEL, LIBDEFLATER_LOW_LEVEL, MAX_FILE_SIZE,
-    MAX_IMAGE_DIMENSION, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
+    MAX_IMAGE_DIMENSION, MAX_JPEG_RECOMPRESS_QUALITY, MAX_QUALITY, MIN_QUALITY, ZOPFLI_ITERATIONS,
 };
 use crate::error::{CompressionError, Result};
 use image::{DynamicImage, GenericImageView, ImageEncoder, ImageFormat, ImageReader};
@@ -9,6 +9,227 @@ use oxipng::{Deflaters, InFile, Options, OutFile};
 use std::fs;
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
+
+#[cfg(feature = "heic")]
+use libheif_rs::HeifContext;
+
+/// Loads a HEIC/HEIF image file using libheif-rs and converts it to DynamicImage.
+///
+/// # Arguments
+/// * `input_path` - Path to the HEIC/HEIF image file to load
+///
+/// # Returns
+/// * `Ok((image, file_size))` - The loaded image and its file size in bytes
+/// * `Err(CompressionError)` - If loading fails
+///
+/// # Requirements
+/// - Requires libheif >= 1.20.0 to be installed on the system
+/// - On Ubuntu/Debian: `sudo apt-get install libheif-dev` (may need backports or source build)
+/// - On macOS: `brew install libheif`
+/// - Enable with: `cargo build --features heic`
+#[cfg(feature = "heic")]
+pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
+    validate_file_exists(input_path)?;
+
+    // Security: Canonicalize for consistency with other loaders
+    let canonical_path = input_path
+        .canonicalize()
+        .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
+
+    // Check file size before loading
+    let file_size = fs::metadata(&canonical_path)?.len();
+    if file_size > MAX_FILE_SIZE {
+        return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
+    }
+
+    // Create HeifContext from file (prefer file path to avoid extra copy)
+    let context = HeifContext::read_from_file(canonical_path.to_str().ok_or_else(|| {
+        CompressionError::UnsupportedFormat("Invalid UTF-8 path for HEIC file".to_string())
+    })?)?;
+
+    // Get the primary image handle
+    let primary_image_handle = context.primary_image_handle()?;
+
+    // Get image dimensions
+    let width = primary_image_handle.width();
+    let height = primary_image_handle.height();
+
+    // Security: Validate image dimensions to prevent DoS attacks
+    if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(CompressionError::InvalidDimensions(
+            width,
+            height,
+            MAX_IMAGE_DIMENSION,
+        ));
+    }
+
+    // Create a LibHeif instance for decoding
+    let lib_heif = libheif_rs::LibHeif::new();
+
+    // Decode the HEIC image to RGB format for compatibility with image crate
+    let decoded_image = lib_heif.decode(
+        &primary_image_handle,
+        libheif_rs::ColorSpace::Rgb(libheif_rs::RgbChroma::C444),
+        None,
+    )?;
+
+    // Get the RGB planes from the decoded image
+    let planes = decoded_image.planes();
+
+    // Extract the individual color channels
+    let r_plane = planes.r.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing red channel in decoded HEIC image".to_string()
+    ))?;
+    let g_plane = planes.g.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing green channel in decoded HEIC image".to_string()
+    ))?;
+    let b_plane = planes.b.ok_or_else(|| CompressionError::UnsupportedFormat(
+        "Missing blue channel in decoded HEIC image".to_string()
+    ))?;
+
+    // Check if there's an alpha channel
+    let has_alpha = planes.a.is_some();
+
+    // Validate plane dimensions match image dimensions
+    if r_plane.width != width || r_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC image plane dimensions ({}, {}) don't match image dimensions ({}, {})",
+                    r_plane.width, r_plane.height, width, height)
+        ));
+    }
+
+    // Validate other planes have consistent dimensions
+    if g_plane.width != width || g_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            "HEIC image green plane dimensions don't match image dimensions".to_string()
+        ));
+    }
+
+    if b_plane.width != width || b_plane.height != height {
+        return Err(CompressionError::UnsupportedFormat(
+            "HEIC image blue plane dimensions don't match image dimensions".to_string()
+        ));
+    }
+
+    if let Some(a_plane) = &planes.a {
+        if a_plane.width != width || a_plane.height != height {
+            return Err(CompressionError::UnsupportedFormat(
+                "HEIC image alpha plane dimensions don't match image dimensions".to_string()
+            ));
+        }
+    }
+
+    // Validate buffer sizes against stride * height to prevent out-of-bounds reads
+    let req_rows = height as usize;
+    let need_r = r_plane.stride.saturating_mul(req_rows);
+    if r_plane.data.len() < need_r {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC R plane too small: {} < {}", r_plane.data.len(), need_r)
+        ));
+    }
+    let need_g = g_plane.stride.saturating_mul(req_rows);
+    if g_plane.data.len() < need_g {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC G plane too small: {} < {}", g_plane.data.len(), need_g)
+        ));
+    }
+    let need_b = b_plane.stride.saturating_mul(req_rows);
+    if b_plane.data.len() < need_b {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC B plane too small: {} < {}", b_plane.data.len(), need_b)
+        ));
+    }
+    if let Some(a_plane) = &planes.a {
+        let need_a = a_plane.stride.saturating_mul(req_rows);
+        if a_plane.data.len() < need_a {
+            return Err(CompressionError::UnsupportedFormat(
+                format!("HEIC A plane too small: {} < {}", a_plane.data.len(), need_a)
+            ));
+        }
+    }
+
+    // Also ensure stride is not smaller than logical width to avoid row overrun
+    let w = width as usize;
+    if r_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC R plane stride too small: {} < {}", r_plane.stride, w)
+        ));
+    }
+    if g_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC G plane stride too small: {} < {}", g_plane.stride, w)
+        ));
+    }
+    if b_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC B plane stride too small: {} < {}", b_plane.stride, w)
+        ));
+    }
+    if let Some(a_plane) = &planes.a {
+        if a_plane.stride < w {
+            return Err(CompressionError::UnsupportedFormat(
+                format!("HEIC A plane stride too small: {} < {}", a_plane.stride, w)
+            ));
+        }
+    }
+
+    // Create an ImageBuffer based on the color format
+    let dynamic_image = if has_alpha {
+        // RGBA format
+        if let Some(a_plane) = planes.a {
+            let mut rgba_data = Vec::with_capacity((width * height * 4) as usize);
+
+            // Interleave the RGBA channels
+            for y in 0..height {
+                for x in 0..width {
+                    let r_idx = (y as usize * r_plane.stride + x as usize) as usize;
+                    let g_idx = (y as usize * g_plane.stride + x as usize) as usize;
+                    let b_idx = (y as usize * b_plane.stride + x as usize) as usize;
+                    let a_idx = (y as usize * a_plane.stride + x as usize) as usize;
+
+                    rgba_data.push(r_plane.data[r_idx]);
+                    rgba_data.push(g_plane.data[g_idx]);
+                    rgba_data.push(b_plane.data[b_idx]);
+                    rgba_data.push(a_plane.data[a_idx]);
+                }
+            }
+
+            let rgba_image = image::RgbaImage::from_raw(width, height, rgba_data)
+                .ok_or_else(|| CompressionError::UnsupportedFormat(
+                    "Failed to create RGBA image from HEIC data".to_string()
+                ))?;
+            DynamicImage::ImageRgba8(rgba_image)
+        } else {
+            return Err(CompressionError::UnsupportedFormat(
+                "Inconsistent alpha channel information in HEIC image".to_string()
+            ));
+        }
+    } else {
+        // RGB format
+        let mut rgb_data = Vec::with_capacity((width * height * 3) as usize);
+
+        // Interleave the RGB channels
+        for y in 0..height {
+            for x in 0..width {
+                let r_idx = (y as usize * r_plane.stride + x as usize) as usize;
+                let g_idx = (y as usize * g_plane.stride + x as usize) as usize;
+                let b_idx = (y as usize * b_plane.stride + x as usize) as usize;
+
+                rgb_data.push(r_plane.data[r_idx]);
+                rgb_data.push(g_plane.data[g_idx]);
+                rgb_data.push(b_plane.data[b_idx]);
+            }
+        }
+
+        let rgb_image = image::RgbImage::from_raw(width, height, rgb_data)
+            .ok_or_else(|| CompressionError::UnsupportedFormat(
+                "Failed to create RGB image from HEIC data".to_string()
+            ))?;
+        DynamicImage::ImageRgb8(rgb_image)
+    };
+
+    Ok((dynamic_image, file_size))
+}
 
 #[derive(Debug, Clone)]
 pub struct CompressionOptions {
@@ -91,7 +312,7 @@ pub fn process_image_pipeline(
     resize_image(&mut img, options);
 
     // Process and save
-    let compressed_size = process_and_save_image(&img, output_path, options)?;
+    let compressed_size = process_and_save_image(&img, output_path, options, input_path)?;
 
     Ok((original_size, compressed_size))
 }
@@ -113,13 +334,21 @@ pub fn process_image_pipeline(
 pub fn load_image_with_metadata(input_path: &Path) -> Result<(DynamicImage, u64)> {
     validate_file_exists(input_path)?;
 
-    // Check for unsupported input formats and provide helpful guidance
+    // Check for special format handling
     if let Some(ext) = input_path.extension().and_then(|s| s.to_str()) {
         match ext.to_ascii_lowercase().as_str() {
             "heic" | "heif" => {
-                return Err(CompressionError::UnsupportedFormat(
-                    "HEIC/HEIF format is not yet supported in this version. Use AVIF for modern compression with similar quality and efficiency".to_string()
-                ));
+                #[cfg(feature = "heic")]
+                {
+                    return load_heic_image(input_path);
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
             }
             "jxl" | "jpegxl" => {
                 return Err(CompressionError::UnsupportedFormat(
@@ -174,10 +403,11 @@ pub fn process_and_save_image(
     img: &DynamicImage,
     output_path: &Path,
     options: &CompressionOptions,
+    input_path: &Path,
 ) -> Result<u64> {
     let output_buf = output_path.to_path_buf();
     let output_format = determine_output_format(output_path, &options.format)?;
-    save_image(img, &output_buf, output_format, options)?;
+    save_image(img, &output_buf, output_format, options, input_path)?;
 
     let compressed_size = fs::metadata(output_path)?.len();
     Ok(compressed_size)
@@ -209,7 +439,7 @@ pub fn compress_image(input: PathBuf, output: PathBuf, options: CompressionOptio
     resize_image(&mut img, &options);
 
     pb.set_message("Saving compressed image...");
-    let compressed_size = process_and_save_image(&img, &output, &options)?;
+    let compressed_size = process_and_save_image(&img, &output, &options, &input)?;
     pb.finish_with_message("✅ Compression complete");
     let compression_ratio =
         ((original_size as f64 - compressed_size as f64) / original_size as f64) * 100.0;
@@ -236,9 +466,21 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
-            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
-                format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
-            )),
+            "heic" | "heif" => {
+                #[cfg(feature = "heic")]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF output format not yet supported. HEIC images can be read and converted to other formats.".to_string()
+                    ));
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
+            }
             "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", fmt)
             )),
@@ -251,9 +493,21 @@ pub fn determine_output_format(output: &Path, format: &Option<String>) -> Result
             "png" => Ok(ImageFormat::Png),
             "webp" => Ok(ImageFormat::WebP),
             "avif" => Ok(ImageFormat::Avif),
-            "heic" | "heif" => Err(CompressionError::UnsupportedFormat(
-                format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
-            )),
+            "heic" | "heif" => {
+                #[cfg(feature = "heic")]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF output format not yet supported. HEIC images can be read and converted to other formats.".to_string()
+                    ));
+                }
+                #[cfg(not(feature = "heic"))]
+                {
+                    return Err(CompressionError::UnsupportedFormat(
+                        "HEIC/HEIF format requires the 'heic' feature. Enable with: cargo build --features heic\n\
+                        Note: Requires libheif >= 1.20.0 system library. On Ubuntu/Debian: sudo apt-get install libheif-dev".to_string()
+                    ));
+                }
+            }
             "jxl" | "jpegxl" => Err(CompressionError::UnsupportedFormat(
                 format!("{} format is not yet supported in this version. Use AVIF for modern compression", ext)
             )),
@@ -269,6 +523,7 @@ pub fn save_image(
     output: &PathBuf,
     format: ImageFormat,
     options: &CompressionOptions,
+    input_path: &Path,
 ) -> Result<()> {
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)
@@ -277,7 +532,35 @@ pub fn save_image(
 
     match format {
         ImageFormat::Jpeg => {
-            img.save_with_format(output, image::ImageFormat::Jpeg)?;
+            // Conservative JPEG compression to prevent generational quality loss
+            use image::codecs::jpeg::JpegEncoder;
+
+            // Conservative JPEG compression to avoid quality loss when re-compressing
+            let actual_quality = if input_path.extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_lowercase() == "jpg" || s.to_lowercase() == "jpeg")
+                .unwrap_or(false) {
+                // Use conservative quality limit for JPEG re-compression
+                // to prevent generational quality loss
+                std::cmp::min(options.quality, MAX_JPEG_RECOMPRESS_QUALITY)
+            } else {
+                options.quality
+            };
+
+            let mut file = std::fs::File::create(output)?;
+            let mut encoder = JpegEncoder::new_with_quality(&mut file, actual_quality);
+            encoder.encode_image(img)?;
+
+            // 如果输出文件比输入大，发出警告
+            if let Ok(output_size) = std::fs::metadata(output).map(|m| m.len()) {
+                if let Ok(input_size) = std::fs::metadata(input_path).map(|m| m.len()) {
+                    if output_size > input_size {
+                        eprintln!("⚠️  Warning: Output file ({}) is larger than input ({})",
+                                 output_size, input_size);
+                        eprintln!("💡 Tip: Try lower quality setting or avoid re-compressing JPEG files");
+                    }
+                }
+            }
         }
         ImageFormat::Png => {
             // 使用 oxipng 进行 PNG 优化
@@ -437,8 +720,16 @@ mod tests {
             Err(CompressionError::UnsupportedFormat(_))
         ));
         if let Err(CompressionError::UnsupportedFormat(msg)) = result {
-            assert!(msg.contains("not yet supported"));
-            assert!(msg.contains("AVIF"));
+            #[cfg(feature = "heic")]
+            {
+                assert!(msg.contains("output format not yet supported"));
+                assert!(msg.contains("can be read and converted"));
+            }
+            #[cfg(not(feature = "heic"))]
+            {
+                assert!(msg.contains("requires the 'heic' feature"));
+                assert!(msg.contains("libheif >= 1.20.0"));
+            }
         }
 
         // Test JPEG XL recognition with helpful error message  

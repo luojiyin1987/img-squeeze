@@ -21,3 +21,6 @@ pub const MAX_BATCH_FILES: usize = 10000; // Maximum number of files in a batch
 pub const MIN_AVAILABLE_MEMORY_MIB: u64 = 512; // Minimum memory to keep available (MiB)
 pub const LARGE_IMAGE_THRESHOLD_MIB: f64 = 50.0; // Images above this size are considered large (MiB)
 pub const MAX_CONCURRENT_LARGE_IMAGES: usize = 2; // Maximum concurrent large image processing
+
+// JPEG compression settings
+pub const MAX_JPEG_RECOMPRESS_QUALITY: u8 = 75; // Maximum quality for re-compressing JPEG files to prevent quality loss
