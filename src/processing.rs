@@ -148,6 +148,31 @@ pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
         }
     }
 
+    // Also ensure stride is not smaller than logical width to avoid row overrun
+    let w = width as usize;
+    if r_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC R plane stride too small: {} < {}", r_plane.stride, w)
+        ));
+    }
+    if g_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC G plane stride too small: {} < {}", g_plane.stride, w)
+        ));
+    }
+    if b_plane.stride < w {
+        return Err(CompressionError::UnsupportedFormat(
+            format!("HEIC B plane stride too small: {} < {}", b_plane.stride, w)
+        ));
+    }
+    if let Some(a_plane) = &planes.a {
+        if a_plane.stride < w {
+            return Err(CompressionError::UnsupportedFormat(
+                format!("HEIC A plane stride too small: {} < {}", a_plane.stride, w)
+            ));
+        }
+    }
+
     // Create an ImageBuffer based on the color format
     let dynamic_image = if has_alpha {
         // RGBA format
