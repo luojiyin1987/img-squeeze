@@ -31,17 +31,21 @@ use libheif_rs::HeifContext;
 pub fn load_heic_image(input_path: &Path) -> Result<(DynamicImage, u64)> {
     validate_file_exists(input_path)?;
 
+    // Security: Canonicalize for consistency with other loaders
+    let canonical_path = input_path
+        .canonicalize()
+        .map_err(|_| CompressionError::FileNotFound(input_path.to_path_buf()))?;
+
     // Check file size before loading
-    let file_size = fs::metadata(input_path)?.len();
+    let file_size = fs::metadata(&canonical_path)?.len();
     if file_size > MAX_FILE_SIZE {
         return Err(CompressionError::FileTooLarge(file_size, MAX_FILE_SIZE));
     }
 
-    // Read the HEIC file
-    let heif_data = fs::read(input_path)?;
-
-    // Create HeifContext from the data
-    let context = HeifContext::read_from_bytes(&heif_data)?;
+    // Create HeifContext from file (prefer file path to avoid extra copy)
+    let context = HeifContext::read_from_file(canonical_path.to_str().ok_or_else(|| {
+        CompressionError::UnsupportedFormat("Invalid UTF-8 path for HEIC file".to_string())
+    })?)?;
 
     // Get the primary image handle
     let primary_image_handle = context.primary_image_handle()?;
