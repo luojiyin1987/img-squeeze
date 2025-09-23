@@ -27,7 +27,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/img-squeeze.git
+git clone https://github.com/luojiyin1987/img-squeeze.git
 cd img-squeeze
 
 # 构建项目
