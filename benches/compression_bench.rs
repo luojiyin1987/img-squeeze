@@ -102,6 +102,7 @@ fn bench_image_processing(c: &mut Criterion) {
                     black_box(&img),
                     black_box(&output_file),
                     black_box(&options),
+                    black_box(&test_file),
                 )
             })
         });
@@ -132,7 +133,7 @@ fn bench_batch_processing(c: &mut Criterion) {
                 if let Ok((img, _)) = load_image_with_metadata(&file) {
                     let options = CompressionOptions::new(Some(80), None, None, None).unwrap();
                     let output_file = output_dir.path().join(file.file_name().unwrap());
-                    let _ = process_and_save_image(&img, &output_file, &options);
+                    let _ = process_and_save_image(&img, &output_file, &options, &file);
                 }
             }
         })
